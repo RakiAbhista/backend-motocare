@@ -46,12 +46,12 @@ class DashboardController extends Controller
     {
         $today = today();
 
-        // Hitung semua role sekaligus — 1 query (Sesuaikan dengan kapitalisasi di DB)
+        // Hitung semua role sekaligus — 1 query (Gunakan lowercase karena role sudah dinormalisasi)
         $roleCounts = User::selectRaw("
                 role,
                 COUNT(*) as total
             ")
-            ->whereIn('role', ['Customer', 'Mechanic', 'CS'])
+            ->whereIn('role', ['customer', 'mechanic', 'customer_service'])
             ->groupBy('role')
             ->pluck('total', 'role');
 
@@ -64,9 +64,9 @@ class DashboardController extends Controller
             ->first();
 
         return [
-            'total_customers'        => $roleCounts->get('Customer', 0),
-            'total_mechanics'        => $roleCounts->get('Mechanic', 0),
-            'total_customer_service' => $roleCounts->get('CS', 0),
+            'total_customers'        => $roleCounts->get('customer', 0),
+            'total_mechanics'        => $roleCounts->get('mechanic', 0),
+            'total_customer_service' => $roleCounts->get('customer_service', 0),
             'total_orders_today'     => (int) ($ordersToday->total ?? 0),
             'total_completed_today'  => (int) ($ordersToday->completed ?? 0),
         ];
@@ -142,8 +142,8 @@ class DashboardController extends Controller
      */
     private function getLatestActivities(): \Illuminate\Support\Collection
     {
-        // Customer baru
-        $newCustomers = User::where('role', 'Customer')
+        // Customer baru (gunakan lowercase)
+        $newCustomers = User::where('role', 'customer')
             ->latest('created_at')
             ->limit(4)
             ->get(['id', 'name', 'email', 'created_at'])

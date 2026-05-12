@@ -13,7 +13,12 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['mechanic', 'voucher', 'orderDetails']);
+        $query = Order::with([
+            'mechanic.user',
+            'voucher',
+            'orderDetails.booking.user',
+            'orderDetails.emergency.user'
+        ]);
 
         // Filter berdasarkan status
         if ($request->has('status')) {
@@ -42,6 +47,43 @@ class OrderController extends Controller
         $query->orderBy($sortBy, $sortOrder);
 
         $orders = $query->paginate($request->get('per_page', 15));
+
+        // Format untuk frontend - map order details ke customer dan workshop
+        $orders->getCollection()->transform(function ($order) {
+            $firstDetail = $order->orderDetails->first();
+            $customer = null;
+            $workshop = null;
+
+            if ($firstDetail) {
+                if ($firstDetail->booking) {
+                    $customer = $firstDetail->booking->user;
+                } elseif ($firstDetail->emergency) {
+                    $customer = $firstDetail->emergency->user;
+                }
+            }
+
+            if ($order->mechanic) {
+                $workshop = $order->mechanic->user;
+            }
+
+            return [
+                'id' => $order->id,
+                'customer' => $customer,
+                'workshop' => $workshop,
+                'mechanic' => $order->mechanic,
+                'voucher' => $order->voucher,
+                'total_price' => $order->total_price,
+                'status' => $order->status,
+                'payment_status' => $order->payment_status,
+                'payment_type' => $order->payment_type,
+                'transaction_id' => $order->transaction_id,
+                'payment_url' => $order->payment_url,
+                'scheduled_at' => $order->scheduled_at,
+                'created_at' => $order->created_at,
+                'updated_at' => $order->updated_at,
+                'orderDetails' => $order->orderDetails,
+            ];
+        });
 
         return response()->json([
             'status' => 'success',

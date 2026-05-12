@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Auth;
 use App\Mail\SendOtpMail;
 use Carbon\Carbon;
 
@@ -18,14 +19,14 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'full_name' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'phone_number' => 'required|string|max:20',
             'email' => 'required|string|email|unique:users',
             'password' => 'required|min:8|confirmed',
         ]);
 
         $user = User::create([
-            'full_name' => $request->full_name,
+            'name' => $request->name,
             'phone_number' => $request->phone_number,
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -33,6 +34,9 @@ class AuthController extends Controller
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        // Login untuk session web
+        Auth::login($user);
 
         return response()->json([
             'status' => 'success',
@@ -63,6 +67,9 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        // Login untuk session web
+        Auth::login($user);
 
         return response()->json([
             'status' => 'success',
@@ -172,6 +179,8 @@ class AuthController extends Controller
             'otp_expires_at' => null
         ]);
 
+        Auth::login($user);
+
         return response()->json([
             'status' => 'success',
             'message' => 'Password berhasil diubah! Silakan login menggunakan password baru.'
@@ -183,8 +192,14 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        // Hapus token yang sedang digunakan
-        $request->user()->currentAccessToken()->delete();
+        // Hapus token yang sedang digunakan (jika ada)
+        if ($request->user()) {
+            $request->user()->currentAccessToken()->delete();
+        }
+        
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'status' => 'success',

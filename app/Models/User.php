@@ -21,7 +21,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'role',
-        'full_name', // Ubah 'name' menjadi 'full_name' sesuai controller
+        'name',
         'phone_number',
         'email',
         'password',
@@ -52,6 +52,17 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Mutator: Normalize role ke lowercase saat disimpan
+     */
+    protected function role(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            set: fn($value) => strtolower($value),
+            get: fn($value) => strtolower($value),
+        );
     }
 
     // Relationships

@@ -18,7 +18,8 @@ class RoleMiddleware
     public function handle(Request $request, Closure $next, ...$roles)
     {
         // Cek apakah user sudah login dan apakah rolenya sesuai dengan yang diizinkan
-        if (!$request->user() || !in_array($request->user()->role, $roles)) {
+        // Gunakan strtolower() untuk case-insensitive comparison
+        if (!$request->user() || !in_array(strtolower($request->user()->role), $roles)) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Anda tidak memiliki akses (Akses khusus ' . implode(', ', $roles) . ')'

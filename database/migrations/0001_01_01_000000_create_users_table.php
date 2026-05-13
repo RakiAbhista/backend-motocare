@@ -30,6 +30,13 @@ return new class extends Migration
             $table->string('token');
             $table->timestamp('created_at')->nullable();
         });
+        
+        Schema::create('forgot_password', function (Blueprint $table) {
+            $table->string('email')->primary();
+            $table->string('otp_code')->nullable();
+            $table->timestamp('otp_expires_at')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
 
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();

@@ -26,9 +26,6 @@ class User extends Authenticatable
         'email',
         'password',
         'points',
-        // 3. Tambahkan kolom OTP agar bisa diisi saat forgot password
-        'otp_code',
-        'otp_expires_at',
     ];
 
     /**

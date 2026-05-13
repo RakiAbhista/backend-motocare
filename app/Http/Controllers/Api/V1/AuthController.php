@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Mail\SendOtpMail;
 use Carbon\Carbon;
 
@@ -98,11 +99,15 @@ class AuthController extends Controller
         // Generate 6 digit angka random
         $otp = (string) rand(111111, 999999);
         
-        // Simpan OTP dan masa berlaku (5 menit dari sekarang)
-        $user->update([
-            'otp_code' => $otp,
-            'otp_expires_at' => Carbon::now()->addMinutes(5)
-        ]);
+        // Simpan OTP dan masa berlaku (5 menit dari sekarang) di tabel forgot_password
+        DB::table('forgot_password')->updateOrInsert(
+            ['email' => $request->email],
+            [
+                'otp_code' => $otp,
+                'otp_expires_at' => Carbon::now()->addMinutes(5),
+                'created_at' => Carbon::now()
+            ]
+        );
 
         // Kirim Email OTP
         Mail::to($user->email)->send(new SendOtpMail($otp));
@@ -123,11 +128,12 @@ class AuthController extends Controller
             'otp' => 'required|string|size:6',
         ]);
 
-        $user = User::where('email', $request->email)
+        $otpRecord = DB::table('forgot_password')
+                    ->where('email', $request->email)
                     ->where('otp_code', $request->otp)
                     ->first();
 
-        if (!$user) {
+        if (!$otpRecord) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Kode OTP salah.'
@@ -135,7 +141,7 @@ class AuthController extends Controller
         }
 
         // Cek apakah OTP sudah kadaluarsa
-        if (Carbon::now()->isAfter($user->otp_expires_at)) {
+        if (Carbon::now()->isAfter($otpRecord->otp_expires_at)) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Kode OTP sudah kadaluarsa. Silakan minta ulang.'
@@ -160,24 +166,28 @@ class AuthController extends Controller
         ]);
 
         // Validasi ulang OTP untuk keamanan ganda sebelum mengubah password
-        $user = User::where('email', $request->email)
+        $otpRecord = DB::table('forgot_password')
+                    ->where('email', $request->email)
                     ->where('otp_code', $request->otp)
                     ->where('otp_expires_at', '>', Carbon::now())
                     ->first();
 
-        if (!$user) {
+        if (!$otpRecord) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Sesi tidak valid, kode OTP salah atau sudah kadaluarsa.'
             ], 400);
         }
 
-        // Ubah password dan bersihkan data OTP
+        $user = User::where('email', $request->email)->first();
+
+        // Ubah password
         $user->update([
-            'password' => Hash::make($request->password),
-            'otp_code' => null,
-            'otp_expires_at' => null
+            'password' => Hash::make($request->password)
         ]);
+
+        // Bersihkan data OTP
+        DB::table('forgot_password')->where('email', $request->email)->delete();
 
         Auth::login($user);
 

@@ -8,6 +8,9 @@ use App\Http\Controllers\Api\V1\Admin\VehicleController;
 use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\Mechanic\DashboardController as MechanicDashboardController;
+use App\Http\Controllers\Api\V1\Mechanic\EmergencyController;
+use App\Http\Controllers\Api\V1\Mechanic\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -68,6 +71,19 @@ Route::prefix('v1')->group(function () {
 
         // Contoh Route Khusus Mechanic
         Route::middleware('role:mechanic')->prefix('mechanic')->group(function () {
+            // Dashboard
+            Route::get('dashboard', [MechanicDashboardController::class, 'index']);
+            Route::post('status', [MechanicDashboardController::class, 'updateStatus']);
+            
+            // Emergencies
+            Route::get('emergencies', [EmergencyController::class, 'index']);
+            Route::get('emergencies/{id}', [EmergencyController::class, 'show']);
+            Route::post('emergencies/{id}/accept', [EmergencyController::class, 'accept']);
+            Route::post('emergencies/{id}/invoice', [EmergencyController::class, 'createInvoice']);
+
+            // Profile
+            Route::get('profile', [ProfileController::class, 'show']);
+            Route::put('profile', [ProfileController::class, 'update']);
         });
 
         // Contoh Route Khusus Customer

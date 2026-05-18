@@ -4,12 +4,16 @@ use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\OrderController;
 use App\Http\Controllers\Api\V1\Admin\ServiceController;
 use App\Http\Controllers\Api\V1\Admin\UserController;
-use App\Http\Controllers\Api\V1\Admin\VehicleController;
+use App\Http\Controllers\Api\V1\Admin\VehicleController as AdminVehicleController;
 use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\V1\Customer\HomeController;
+use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
+use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
+use App\Http\Controllers\Api\V1\Customer\ProfileController; 
 
 Route::prefix('v1')->group(function () {
 
@@ -43,9 +47,9 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('users', UserController::class);
             
             // Vehicles Management (Read & Delete only)
-            Route::get('vehicles', [VehicleController::class, 'index']);
-            Route::get('vehicles/{vehicle}', [VehicleController::class, 'show']);
-            Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
+            Route::get('vehicles', [AdminVehicleController::class, 'index']);
+            Route::get('vehicles/{vehicle}', [AdminVehicleController::class, 'show']);
+            Route::delete('vehicles/{vehicle}', [AdminVehicleController::class, 'destroy']);
             
             // Services Management
             Route::apiResource('services', ServiceController::class);
@@ -72,6 +76,24 @@ Route::prefix('v1')->group(function () {
 
         // Contoh Route Khusus Customer
         Route::middleware('role:customer')->prefix('customer')->group(function () {
+            
+            // Endpoint Beranda Utama
+            Route::get('/home', [HomeController::class, 'index']);
+
+            // Endpoint Kendaraan Customer
+            Route::get('/vehicles', [CustomerVehicleController::class, 'index']);
+            Route::post('/vehicles', [CustomerVehicleController::class, 'store']);
+            Route::delete('/vehicles/{id}', [CustomerVehicleController::class, 'destroy']);
+
+            // Endpoint Riwayat Pesanan Customer
+            Route::get('/orders', [CustomerOrderController::class, 'index']);
+            Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
+
+            // Endpoint Profil Customer
+            Route::get('/profile', [ProfileController::class, 'show']);
+            Route::put('/profile', [ProfileController::class, 'update']);
+            Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+            
         });
     });
 

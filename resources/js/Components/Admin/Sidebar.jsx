@@ -33,8 +33,9 @@ export default function Sidebar({ isOpen, onClose }) {
             {/* Desktop Sidebar */}
             <div className="hidden md:flex fixed left-4 top-4 w-64 bg-primary text-white rounded-2xl shadow-xl flex-col h-[calc(100vh-2rem)] overflow-hidden z-40">
                 {/* Logo/Brand */}
-                <div className="p-8 pb-4">
-                    <h1 className="text-2xl font-bold tracking-widest uppercase">Motocare</h1>
+                <div className="p-8 pb-4 flex items-center gap-3">
+                    <img src="/images/logo-motocare.png" alt="Logo" className="w-10 h-10 object-contain rounded p-0.5" />
+                    <h1 className="text-xl font-bold tracking-widest uppercase">Motocare</h1>
                 </div>
 
                 {/* Navigation Links */}
@@ -83,7 +84,8 @@ export default function Sidebar({ isOpen, onClose }) {
                 </div>
 
                 {/* Logo/Brand */}
-                <div className="px-8 pb-4">
+                <div className="px-8 pb-4 flex items-center gap-3">
+                    <img src="/images/logo-motocare.png" alt="Logo" className="w-8 h-8 object-contain rounded-lg bg-white/10 p-0.5" />
                     <h1 className="text-2xl font-bold tracking-widest uppercase">Motocare</h1>
                 </div>
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Admin\VehicleController;
 use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CS\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -64,6 +65,21 @@ Route::prefix('v1')->group(function () {
        
         // Contoh Route Khusus CS
         Route::middleware('role:customer_service')->prefix('customer-service')->group(function () {
+            
+            Route::get('dashboard', [DashboardController::class, 'index']);
+
+            // Users Management
+            //Route::get('users', ProfileController::class);
+            Route::get('profile', [ProfileController::class, 'profile']);
+
+            Route::get('orders', [OrderController::class, 'index']);
+            Route::get('orders/{order}', [OrderController::class, 'show']);
+            Route::delete('orders/{order}', [OrderController::class, 'destroy']);
+
+            Route::get('dashboard',[\App\Http\Controllers\Api\V1\CS\DashboardController::class, 'index']);
+
+            Route::get('emergencies',[\App\Http\Controllers\Api\V1\CS\EmergencyController::class, 'index']);
+
         });
 
         // Contoh Route Khusus Mechanic

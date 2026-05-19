@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Mechanic;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\Mechanic;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
-class ProfileController extends Controller
+class MechanicProfileController extends Controller
 {
     /**
      * Show the profile of the authenticated mechanic.

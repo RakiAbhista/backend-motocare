@@ -8,16 +8,16 @@ use App\Http\Controllers\Api\V1\Admin\VehicleController as AdminVehicleControlle
 use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\CS\ProfileController;
+use App\Http\Controllers\Api\V1\CS\CSProfileController;
+use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Customer\HomeController;
+use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
+use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
 use App\Http\Controllers\Api\V1\Mechanic\DashboardController as MechanicDashboardController;
 use App\Http\Controllers\Api\V1\Mechanic\EmergencyController;
-use App\Http\Controllers\Api\V1\Mechanic\ProfileController;
+use App\Http\Controllers\Api\V1\Mechanic\MechanicProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\V1\Customer\HomeController;
-use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
-use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
-use App\Http\Controllers\Api\V1\Customer\ProfileController; 
 
 Route::prefix('v1')->group(function () {
 
@@ -76,8 +76,8 @@ Route::prefix('v1')->group(function () {
             Route::get('dashboard', [DashboardController::class, 'index']);
 
             // Users Management
-            //Route::get('users', ProfileController::class);
-            Route::get('profile', [ProfileController::class, 'profile']);
+            //Route::get('users', CSProfileController::class);
+            Route::get('profile', [CSProfileController::class, 'profile']);
 
             Route::get('orders', [OrderController::class, 'index']);
             Route::get('orders/{order}', [OrderController::class, 'show']);
@@ -102,8 +102,8 @@ Route::prefix('v1')->group(function () {
             Route::post('emergencies/{id}/invoice', [EmergencyController::class, 'createInvoice']);
 
             // Profile
-            Route::get('profile', [ProfileController::class, 'show']);
-            Route::put('profile', [ProfileController::class, 'update']);
+            Route::get('profile', [MechanicProfileController::class, 'show']);
+            Route::put('profile', [MechanicProfileController::class, 'update']);
         });
 
         // Contoh Route Khusus Customer
@@ -122,9 +122,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
 
             // Endpoint Profil Customer
-            Route::get('/profile', [ProfileController::class, 'show']);
-            Route::put('/profile', [ProfileController::class, 'update']);
-            Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+            Route::get('/profile', [CustomerProfileController::class, 'show']);
+            Route::put('/profile', [CustomerProfileController::class, 'update']);
+            Route::put('/profile/password', [CustomerProfileController::class, 'updatePassword']);
             
         });
     });

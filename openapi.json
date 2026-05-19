@@ -1,0 +1,724 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "MotoCare API Documentation",
+    "description": "Complete API Documentation for MotoCare Application - Authentication, Admin, Customer Service, Mechanic, and Customer endpoints",
+    "version": "1.0.0",
+    "contact": {
+      "name": "MotoCare Team",
+      "email": "support@motocare.com"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000/api",
+      "description": "Development Server"
+    },
+    {
+      "url": "https://api.motocare.com/api",
+      "description": "Production Server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "User authentication endpoints"
+    },
+    {
+      "name": "Admin - Dashboard",
+      "description": "Admin dashboard management"
+    },
+    {
+      "name": "Admin - Users",
+      "description": "Admin user management (CRUD)"
+    },
+    {
+      "name": "Admin - Vehicles",
+      "description": "Admin vehicle management"
+    },
+    {
+      "name": "Admin - Services",
+      "description": "Admin service management (CRUD)"
+    },
+    {
+      "name": "Admin - Workshops",
+      "description": "Admin workshop management (CRUD)"
+    },
+    {
+      "name": "Admin - Vouchers",
+      "description": "Admin voucher management (CRUD)"
+    },
+    {
+      "name": "Admin - Orders",
+      "description": "Admin order management"
+    },
+    {
+      "name": "Customer Service - Dashboard",
+      "description": "Customer service dashboard"
+    },
+    {
+      "name": "Customer Service - Orders",
+      "description": "Customer service order management"
+    },
+    {
+      "name": "Customer Service - Emergencies",
+      "description": "Customer service emergency management"
+    },
+    {
+      "name": "Mechanic - Dashboard",
+      "description": "Mechanic dashboard and status"
+    },
+    {
+      "name": "Mechanic - Emergencies",
+      "description": "Mechanic emergency handling"
+    },
+    {
+      "name": "Mechanic - Profile",
+      "description": "Mechanic profile management"
+    },
+    {
+      "name": "Customer - Home",
+      "description": "Customer home/dashboard"
+    },
+    {
+      "name": "Customer - Vehicles",
+      "description": "Customer vehicle management"
+    },
+    {
+      "name": "Customer - Orders",
+      "description": "Customer order history"
+    },
+    {
+      "name": "Customer - Profile",
+      "description": "Customer profile management"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "sanctum": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "sanctum",
+        "description": "Login with email and password to get the authentication token"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "name": {"type": "string"},
+          "email": {"type": "string", "format": "email"},
+          "phone_number": {"type": "string"},
+          "role": {"type": "string", "enum": ["admin", "customer_service", "mechanic", "customer"]}
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v1/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "User Registration",
+        "operationId": "register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "password", "phone_number"],
+                "properties": {
+                  "name": {"type": "string"},
+                  "email": {"type": "string", "format": "email"},
+                  "password": {"type": "string", "format": "password", "minLength": 8},
+                  "phone_number": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "User registered successfully"}
+        }
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "User Login",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {"type": "string", "format": "email"},
+                  "password": {"type": "string", "format": "password"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Login successful"}
+        }
+      }
+    },
+    "/v1/auth/forgot-password": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Forgot Password - Send OTP",
+        "operationId": "forgotPassword",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": {"type": "string", "format": "email"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "OTP sent successfully"}
+        }
+      }
+    },
+    "/v1/auth/verify-otp": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Verify OTP Code",
+        "operationId": "verifyOtp",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "otp"],
+                "properties": {
+                  "email": {"type": "string", "format": "email"},
+                  "otp": {"type": "string", "minLength": 6, "maxLength": 6}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "OTP verified successfully"}
+        }
+      }
+    },
+    "/v1/auth/reset-password": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Reset Password",
+        "operationId": "resetPassword",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "otp", "password", "password_confirmation"],
+                "properties": {
+                  "email": {"type": "string", "format": "email"},
+                  "otp": {"type": "string"},
+                  "password": {"type": "string", "format": "password", "minLength": 8},
+                  "password_confirmation": {"type": "string", "format": "password"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Password reset successfully"}
+        }
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "User Logout",
+        "operationId": "logout",
+        "security": [{"sanctum": []}],
+        "responses": {
+          "200": {"description": "Logout successful"}
+        }
+      }
+    },
+    "/v1/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get Current User",
+        "operationId": "getMe",
+        "security": [{"sanctum": []}],
+        "responses": {
+          "200": {"description": "User profile"}
+        }
+      }
+    },
+    "/v1/admin/dashboard": {
+      "get": {
+        "tags": ["Admin - Dashboard"],
+        "summary": "Admin Dashboard",
+        "operationId": "adminDashboard",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Dashboard data"}}
+      }
+    },
+    "/v1/admin/users": {
+      "get": {
+        "tags": ["Admin - Users"],
+        "summary": "List Users",
+        "operationId": "listUsers",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Users list"}}
+      },
+      "post": {
+        "tags": ["Admin - Users"],
+        "summary": "Create User",
+        "operationId": "createUser",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"201": {"description": "User created"}}
+      }
+    },
+    "/v1/admin/users/{id}": {
+      "get": {
+        "tags": ["Admin - Users"],
+        "summary": "Get User",
+        "operationId": "getUser",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "User data"}}
+      },
+      "put": {
+        "tags": ["Admin - Users"],
+        "summary": "Update User",
+        "operationId": "updateUser",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "User updated"}}
+      },
+      "delete": {
+        "tags": ["Admin - Users"],
+        "summary": "Delete User",
+        "operationId": "deleteUser",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "User deleted"}}
+      }
+    },
+    "/v1/admin/vehicles": {
+      "get": {
+        "tags": ["Admin - Vehicles"],
+        "summary": "List Vehicles",
+        "operationId": "listVehicles",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Vehicles list"}}
+      }
+    },
+    "/v1/admin/vehicles/{id}": {
+      "get": {
+        "tags": ["Admin - Vehicles"],
+        "summary": "Get Vehicle",
+        "operationId": "getVehicle",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Vehicle data"}}
+      },
+      "delete": {
+        "tags": ["Admin - Vehicles"],
+        "summary": "Delete Vehicle",
+        "operationId": "deleteVehicle",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Vehicle deleted"}}
+      }
+    },
+    "/v1/admin/services": {
+      "get": {
+        "tags": ["Admin - Services"],
+        "summary": "List Services",
+        "operationId": "listServices",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Services list"}}
+      },
+      "post": {
+        "tags": ["Admin - Services"],
+        "summary": "Create Service",
+        "operationId": "createService",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"201": {"description": "Service created"}}
+      }
+    },
+    "/v1/admin/services/{id}": {
+      "get": {
+        "tags": ["Admin - Services"],
+        "summary": "Get Service",
+        "operationId": "getService",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Service data"}}
+      },
+      "put": {
+        "tags": ["Admin - Services"],
+        "summary": "Update Service",
+        "operationId": "updateService",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Service updated"}}
+      },
+      "delete": {
+        "tags": ["Admin - Services"],
+        "summary": "Delete Service",
+        "operationId": "deleteService",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Service deleted"}}
+      }
+    },
+    "/v1/admin/workshops": {
+      "get": {
+        "tags": ["Admin - Workshops"],
+        "summary": "List Workshops",
+        "operationId": "listWorkshops",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Workshops list"}}
+      },
+      "post": {
+        "tags": ["Admin - Workshops"],
+        "summary": "Create Workshop",
+        "operationId": "createWorkshop",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"201": {"description": "Workshop created"}}
+      }
+    },
+    "/v1/admin/workshops/{id}": {
+      "get": {
+        "tags": ["Admin - Workshops"],
+        "summary": "Get Workshop",
+        "operationId": "getWorkshop",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Workshop data"}}
+      },
+      "put": {
+        "tags": ["Admin - Workshops"],
+        "summary": "Update Workshop",
+        "operationId": "updateWorkshop",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Workshop updated"}}
+      },
+      "delete": {
+        "tags": ["Admin - Workshops"],
+        "summary": "Delete Workshop",
+        "operationId": "deleteWorkshop",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Workshop deleted"}}
+      }
+    },
+    "/v1/admin/vouchers": {
+      "get": {
+        "tags": ["Admin - Vouchers"],
+        "summary": "List Vouchers",
+        "operationId": "listVouchers",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Vouchers list"}}
+      },
+      "post": {
+        "tags": ["Admin - Vouchers"],
+        "summary": "Create Voucher",
+        "operationId": "createVoucher",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"201": {"description": "Voucher created"}}
+      }
+    },
+    "/v1/admin/vouchers/{id}": {
+      "get": {
+        "tags": ["Admin - Vouchers"],
+        "summary": "Get Voucher",
+        "operationId": "getVoucher",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Voucher data"}}
+      },
+      "put": {
+        "tags": ["Admin - Vouchers"],
+        "summary": "Update Voucher",
+        "operationId": "updateVoucher",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Voucher updated"}}
+      },
+      "delete": {
+        "tags": ["Admin - Vouchers"],
+        "summary": "Delete Voucher",
+        "operationId": "deleteVoucher",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Voucher deleted"}}
+      }
+    },
+    "/v1/admin/orders": {
+      "get": {
+        "tags": ["Admin - Orders"],
+        "summary": "List Orders",
+        "operationId": "listOrders",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Orders list"}}
+      }
+    },
+    "/v1/admin/orders/{id}": {
+      "get": {
+        "tags": ["Admin - Orders"],
+        "summary": "Get Order",
+        "operationId": "getOrder",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Order data"}}
+      },
+      "delete": {
+        "tags": ["Admin - Orders"],
+        "summary": "Delete Order",
+        "operationId": "deleteOrder",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Order deleted"}}
+      }
+    },
+    "/v1/customer-service/dashboard": {
+      "get": {
+        "tags": ["Customer Service - Dashboard"],
+        "summary": "CS Dashboard",
+        "operationId": "csDashboard",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Dashboard data"}}
+      }
+    },
+    "/v1/customer-service/profile": {
+      "get": {
+        "tags": ["Customer Service - Profile"],
+        "summary": "Get CS Profile",
+        "operationId": "getCSProfile",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Profile data"}}
+      }
+    },
+    "/v1/customer-service/orders": {
+      "get": {
+        "tags": ["Customer Service - Orders"],
+        "summary": "List Orders",
+        "operationId": "csListOrders",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Orders list"}}
+      }
+    },
+    "/v1/customer-service/orders/{id}": {
+      "get": {
+        "tags": ["Customer Service - Orders"],
+        "summary": "Get Order",
+        "operationId": "csGetOrder",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Order data"}}
+      },
+      "delete": {
+        "tags": ["Customer Service - Orders"],
+        "summary": "Delete Order",
+        "operationId": "csDeleteOrder",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Order deleted"}}
+      }
+    },
+    "/v1/customer-service/emergencies": {
+      "get": {
+        "tags": ["Customer Service - Emergencies"],
+        "summary": "List Emergencies",
+        "operationId": "csListEmergencies",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Emergencies list"}}
+      }
+    },
+    "/v1/mechanic/dashboard": {
+      "get": {
+        "tags": ["Mechanic - Dashboard"],
+        "summary": "Mechanic Dashboard",
+        "operationId": "mechanicDashboard",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Dashboard data"}}
+      }
+    },
+    "/v1/mechanic/status": {
+      "post": {
+        "tags": ["Mechanic - Dashboard"],
+        "summary": "Update Status",
+        "operationId": "updateMechanicStatus",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Status updated"}}
+      }
+    },
+    "/v1/mechanic/emergencies": {
+      "get": {
+        "tags": ["Mechanic - Emergencies"],
+        "summary": "List Emergencies",
+        "operationId": "mechanicListEmergencies",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Emergencies list"}}
+      }
+    },
+    "/v1/mechanic/emergencies/{id}": {
+      "get": {
+        "tags": ["Mechanic - Emergencies"],
+        "summary": "Get Emergency",
+        "operationId": "mechanicGetEmergency",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Emergency data"}}
+      }
+    },
+    "/v1/mechanic/emergencies/{id}/accept": {
+      "post": {
+        "tags": ["Mechanic - Emergencies"],
+        "summary": "Accept Emergency",
+        "operationId": "acceptEmergency",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Emergency accepted"}}
+      }
+    },
+    "/v1/mechanic/emergencies/{id}/invoice": {
+      "post": {
+        "tags": ["Mechanic - Emergencies"],
+        "summary": "Create Invoice",
+        "operationId": "createInvoice",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Invoice created"}}
+      }
+    },
+    "/v1/mechanic/profile": {
+      "get": {
+        "tags": ["Mechanic - Profile"],
+        "summary": "Get Profile",
+        "operationId": "getMechanicProfile",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Profile data"}}
+      },
+      "put": {
+        "tags": ["Mechanic - Profile"],
+        "summary": "Update Profile",
+        "operationId": "updateMechanicProfile",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Profile updated"}}
+      }
+    },
+    "/v1/customer/home": {
+      "get": {
+        "tags": ["Customer - Home"],
+        "summary": "Home/Dashboard",
+        "operationId": "customerHome",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Home data"}}
+      }
+    },
+    "/v1/customer/vehicles": {
+      "get": {
+        "tags": ["Customer - Vehicles"],
+        "summary": "List Vehicles",
+        "operationId": "customerListVehicles",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Vehicles list"}}
+      },
+      "post": {
+        "tags": ["Customer - Vehicles"],
+        "summary": "Add Vehicle",
+        "operationId": "customerAddVehicle",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"201": {"description": "Vehicle added"}}
+      }
+    },
+    "/v1/customer/vehicles/{id}": {
+      "delete": {
+        "tags": ["Customer - Vehicles"],
+        "summary": "Delete Vehicle",
+        "operationId": "customerDeleteVehicle",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Vehicle deleted"}}
+      }
+    },
+    "/v1/customer/orders": {
+      "get": {
+        "tags": ["Customer - Orders"],
+        "summary": "List Orders",
+        "operationId": "customerListOrders",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Orders list"}}
+      }
+    },
+    "/v1/customer/orders/{id}": {
+      "get": {
+        "tags": ["Customer - Orders"],
+        "summary": "Get Order",
+        "operationId": "customerGetOrder",
+        "security": [{"sanctum": []}],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "Order data"}}
+      }
+    },
+    "/v1/customer/profile": {
+      "get": {
+        "tags": ["Customer - Profile"],
+        "summary": "Get Profile",
+        "operationId": "getCustomerProfile",
+        "security": [{"sanctum": []}],
+        "responses": {"200": {"description": "Profile data"}}
+      },
+      "put": {
+        "tags": ["Customer - Profile"],
+        "summary": "Update Profile",
+        "operationId": "updateCustomerProfile",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Profile updated"}}
+      }
+    },
+    "/v1/customer/profile/password": {
+      "put": {
+        "tags": ["Customer - Profile"],
+        "summary": "Update Password",
+        "operationId": "updateCustomerPassword",
+        "security": [{"sanctum": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "Password updated"}}
+      }
+    }
+  }
+}

@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
-class ProfileController extends Controller
+class CustomerProfileController extends Controller
 {
     /**
      * 1. Menampilkan data profil customer yang sedang login

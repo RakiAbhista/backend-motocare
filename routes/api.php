@@ -8,7 +8,18 @@ use App\Http\Controllers\Api\V1\Admin\VehicleController;
 use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\CS\ProfileController;
+use App\Http\Controllers\Api\V1\CS\ProfileController as CSProfileController;
+use App\Http\Controllers\Api\V1\CS\DashboardController as CSDashboardController;
+use App\Http\Controllers\Api\V1\CS\OrderController as CSOrderController;
+use App\Http\Controllers\Api\V1\CS\EmergencyController as CSEmergencyController;
+use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Customer\HomeController;
+use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
+use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
+use App\Http\Controllers\Api\V1\CustomerService\ServiceDetailController;
+use App\Http\Controllers\Api\V1\Mechanic\DashboardController as MechanicDashboardController;
+use App\Http\Controllers\Api\V1\Mechanic\EmergencyController;
+use App\Http\Controllers\Api\V1\Mechanic\MechanicProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -66,19 +77,28 @@ Route::prefix('v1')->group(function () {
         // Contoh Route Khusus CS
         Route::middleware('role:customer_service')->prefix('customer-service')->group(function () {
             
-            Route::get('dashboard', [DashboardController::class, 'index']);
+            // Dashboard ( Beranda )
+            Route::get('dashboard', [CSDashboardController::class, 'index']);
 
             // Users Management
-            //Route::get('users', ProfileController::class);
-            Route::get('profile', [ProfileController::class, 'profile']);
+            Route::get('/profile', [CSProfileController::class, 'show']);
+            Route::put('/profile', [CSProfileController::class, 'update']);
 
-            Route::get('orders', [OrderController::class, 'index']);
-            Route::get('orders/{order}', [OrderController::class, 'show']);
-            Route::delete('orders/{order}', [OrderController::class, 'destroy']);
+            // ORDER
+            Route::post('orders/find-vehicle', [CSOrderController::class, 'findVehicle']);
+            Route::get('orders', [CSOrderController::class, 'index']);
+            Route::get('orders/{id}', [CSOrderController::class, 'show']);
+            Route::post('orders', [CSOrderController::class, 'store']);
+            Route::delete('orders/{order}', [CSOrderController::class, 'destroy']);
+            
+            // Emergency
+            Route::get('/emergencies',              [CSEmergencyController::class, 'index']);
+            Route::get('/emergencies/{id}',         [CSEmergencyController::class, 'show']);
+            Route::put('/emergencies/{id}/assign',  [CSEmergencyController::class, 'assignMechanic']);
+            Route::put('/emergencies/{id}/status',  [CSEmergencyController::class, 'updateStatus']);
 
-            Route::get('dashboard',[\App\Http\Controllers\Api\V1\CS\DashboardController::class, 'index']);
-
-            Route::get('emergencies',[\App\Http\Controllers\Api\V1\CS\EmergencyController::class, 'index']);
+            // Helper: list mekanik tersedia
+            Route::get('/mechanics',                [CSEmergencyController::class, 'availableMechanics']);
 
         });
 

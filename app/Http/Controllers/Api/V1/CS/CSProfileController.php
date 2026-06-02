@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\V1\CS;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
-class ProfileController extends Controller
+class CSProfileController extends Controller
 {
     /**
      * Display authenticated user profile

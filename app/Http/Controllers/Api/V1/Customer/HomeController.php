@@ -31,7 +31,7 @@ class HomeController extends Controller
         $userSummary = [
             'name'  => $user->name,
             'points' => $user->points ?? 0,
-            'active_vouchers_count' => 2, // Mock statis sementara sebelum tabel relasi voucher user dibuat oleh tim auth
+            'active_vouchers_count' => 0,
         ];
 
         // 2. Banner Promo (Data statis aman yang mengarah ke aset lokal/url luar)

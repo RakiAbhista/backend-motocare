@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Emergency;
 use App\Models\Order;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class OrderController extends Controller
@@ -75,5 +76,26 @@ class OrderController extends Controller
             'message' => 'Detail pesanan berhasil diambil',
             'data' => $order
         ], 200);
+    }
+
+    public function cancel($id)
+    {
+        $order = Order::where('id', $id)->whereHas('orderDetails', function ($q) {
+            $q->whereHasMorph('source', [Booking::class, Emergency::class], function ($q) {
+                $q->where('user_id', Auth::id());
+            });
+        })->first();
+
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Pesanan tidak ditemukan'], 404);
+        }
+
+        if ($order->status === 'completed' || $order->status === 'canceled') {
+            return response()->json(['success' => false, 'message' => 'Pesanan sudah tidak bisa dibatalkan'], 400);
+        }
+
+        $order->update(['status' => 'canceled']);
+
+        return response()->json(['success' => true, 'message' => 'Pesanan dibatalkan']);
     }
 }

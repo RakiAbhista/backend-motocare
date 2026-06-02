@@ -9,18 +9,28 @@ use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CS\CSProfileController;
-use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use App\Http\Controllers\Api\V1\Customer\BookingController;
+use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Customer\EmergencyController as CustomerEmergencyController;
 use App\Http\Controllers\Api\V1\Customer\HomeController;
 use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
 use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
+use App\Http\Controllers\Api\V1\Customer\VoucherController as CustomerVoucherController;
 use App\Http\Controllers\Api\V1\Mechanic\DashboardController as MechanicDashboardController;
 use App\Http\Controllers\Api\V1\Mechanic\EmergencyController;
 use App\Http\Controllers\Api\V1\Mechanic\MechanicProfileController;
+use App\Http\Controllers\Api\V1\Public\ServiceController as PublicServiceController;
+use App\Http\Controllers\Api\V1\Public\WorkshopController as PublicWorkshopController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
+
+    // --- PUBLIC ROUTES (No Auth) ---
+    Route::get('services', [PublicServiceController::class, 'index']);
+    Route::get('workshops', [PublicWorkshopController::class, 'index']);
+    Route::get('workshops/{id}', [PublicWorkshopController::class, 'show']);
+    Route::get('workshops/nearby', [PublicWorkshopController::class, 'nearby']);
 
     // --- AUTHENTICATION ---
     Route::prefix('auth')->group(function () {
@@ -116,6 +126,7 @@ Route::prefix('v1')->group(function () {
             // Endpoint Kendaraan Customer
             Route::get('/vehicles', [CustomerVehicleController::class, 'index']);
             Route::post('/vehicles', [CustomerVehicleController::class, 'store']);
+            Route::put('/vehicles/{id}', [CustomerVehicleController::class, 'update']);
             Route::delete('/vehicles/{id}', [CustomerVehicleController::class, 'destroy']);
 
             // Endpoint Booking Service
@@ -128,6 +139,23 @@ Route::prefix('v1')->group(function () {
             // Endpoint Riwayat Pesanan Customer
             Route::get('/orders', [CustomerOrderController::class, 'index']);
             Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
+            Route::post('/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
+
+            // Endpoint Booking
+            Route::get('/bookings', [BookingController::class, 'index']);
+            Route::post('/bookings', [BookingController::class, 'store']);
+            Route::get('/bookings/{id}', [BookingController::class, 'show']);
+            Route::delete('/bookings/{id}', [BookingController::class, 'destroy']);
+
+            // Endpoint Emergency
+            Route::get('/emergencies', [CustomerEmergencyController::class, 'index']);
+            Route::post('/emergencies', [CustomerEmergencyController::class, 'store']);
+            Route::get('/emergencies/{id}', [CustomerEmergencyController::class, 'show']);
+            Route::post('/emergencies/{id}/cancel', [CustomerEmergencyController::class, 'cancel']);
+
+            // Endpoint Voucher (Read Only)
+            Route::get('/vouchers', [CustomerVoucherController::class, 'index']);
+            Route::post('/vouchers/validate', [CustomerVoucherController::class, 'validate']);
 
             // Endpoint Profil Customer
             Route::get('/profile', [CustomerProfileController::class, 'show']);

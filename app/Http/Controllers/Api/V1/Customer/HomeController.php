@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\Emergency;
+use App\Models\Order;
+use App\Models\OrderDetail;
+use App\Models\Booking;
 use Illuminate\Support\Facades\Auth;
 
 class HomeController extends Controller
@@ -69,6 +72,43 @@ class HomeController extends Controller
             ];
         }
 
+        // 5. Active Order Status (pending, process, payment)
+        $activeOrder = null;
+
+        $order = Order::whereIn('status', ['pending', 'process', 'payment'])
+            ->whereHas('orderDetails', function ($query) use ($userId) {
+                $query->where('service_type', 'booking')
+                    ->whereHasMorph('source', [Booking::class], function ($q) use ($userId) {
+                        $q->where('user_id', $userId);
+                    });
+            })
+            ->with([
+                'orderDetails' => function ($query) {
+                    $query->where('service_type', 'booking');
+                },
+                'orderDetails.source',
+                'orderServices.service'
+            ])
+            ->latest()
+            ->first();
+
+        if ($order) {
+            $booking = $order->orderDetails->first()?->source;
+            $activeOrder = [
+                'order_id'     => $order->id,
+                'booking_id'   => $booking?->id,
+                'status'       => $order->status,
+                'total_price'  => $order->total_price,
+                'is_towing'    => $order->is_towing,
+                'booking_date' => $booking?->booking_date,
+                'services'     => $order->orderServices->map(fn($os) => [
+                    'id'           => $os->service->id,
+                    'service_name' => $os->service->service_name,
+                    'base_price'   => $os->service->base_price,
+                ]),
+            ];
+        }
+
         // Response Terpusat siap dikonsumsi Flutter
         return response()->json([
             'success' => true,
@@ -78,6 +118,7 @@ class HomeController extends Controller
                 'banners'          => $banners,
                 'vehicles'         => $vehicles,
                 'active_emergency' => $activeEmergency,
+                'active_order'     => $activeOrder,
             ]
         ], 200);
     }

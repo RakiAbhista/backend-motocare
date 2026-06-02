@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CS\CSProfileController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\HomeController;
 use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
 use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
@@ -116,6 +117,13 @@ Route::prefix('v1')->group(function () {
             Route::get('/vehicles', [CustomerVehicleController::class, 'index']);
             Route::post('/vehicles', [CustomerVehicleController::class, 'store']);
             Route::delete('/vehicles/{id}', [CustomerVehicleController::class, 'destroy']);
+
+            // Endpoint Booking Service
+            Route::get('/booking/vehicles', [BookingController::class, 'getVehicles']);
+            Route::get('/booking/services', [BookingController::class, 'getServices']);
+            Route::get('/booking/workshops', [BookingController::class, 'getWorkshops']);
+            Route::post('/booking/summary', [BookingController::class, 'getSummary']);
+            Route::post('/booking', [BookingController::class, 'store']);
 
             // Endpoint Riwayat Pesanan Customer
             Route::get('/orders', [CustomerOrderController::class, 'index']);

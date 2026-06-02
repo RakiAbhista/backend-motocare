@@ -14,6 +14,7 @@ class Order extends Model
         'voucher_id',
         'total_price',
         'status',
+        'is_towing',
         'payment_status',
         'payment_type',
         'transaction_id',

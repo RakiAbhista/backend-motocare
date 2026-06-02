@@ -17,6 +17,7 @@ class OrderController extends Controller
                 $q->where('user_id', Auth::id());
             });
         })
+        
         ->with([
             'orderDetails.source.workshop',
             'orderDetails.source.vehicle',

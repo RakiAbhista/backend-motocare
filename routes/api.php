@@ -106,6 +106,10 @@ Route::prefix('v1')->group(function () {
             Route::get('dashboard', [MechanicDashboardController::class, 'index']);
             Route::post('status', [MechanicDashboardController::class, 'updateStatus']);
             
+            // Orders
+            Route::post('orders/{id}/accept', [MechanicDashboardController::class, 'acceptOrder']);
+            Route::post('orders/{id}/complete', [MechanicDashboardController::class, 'completeOrder']);
+            
             // Emergencies
             Route::get('emergencies', [EmergencyController::class, 'index']);
             Route::get('emergencies/{id}', [EmergencyController::class, 'show']);
@@ -140,12 +144,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/orders', [CustomerOrderController::class, 'index']);
             Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
             Route::post('/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
-
-            // Endpoint Booking
-            Route::get('/bookings', [BookingController::class, 'index']);
-            Route::post('/bookings', [BookingController::class, 'store']);
-            Route::get('/bookings/{id}', [BookingController::class, 'show']);
-            Route::delete('/bookings/{id}', [BookingController::class, 'destroy']);
 
             // Endpoint Emergency
             Route::get('/emergencies', [CustomerEmergencyController::class, 'index']);

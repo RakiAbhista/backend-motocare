@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\CS\ProfileController as CSProfileController;
 use App\Http\Controllers\Api\V1\CS\DashboardController as CSDashboardController;
 use App\Http\Controllers\Api\V1\CS\OrderController as CSOrderController;
 use App\Http\Controllers\Api\V1\CS\EmergencyController as CSEmergencyController;
+use App\Http\Controllers\Api\V1\CS\VehicleController as CSVehicleController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use App\Http\Controllers\Api\V1\Customer\HomeController;
 use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
@@ -90,6 +91,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/profile', [CSProfileController::class, 'show']);
             Route::put('/profile', [CSProfileController::class, 'update']);
 
+
             // ORDER
             Route::post('orders/find-vehicle', [CSOrderController::class, 'findVehicle']);
             Route::get('orders', [CSOrderController::class, 'index']);
@@ -105,6 +107,13 @@ Route::prefix('v1')->group(function () {
 
             // Helper: list mekanik tersedia
             Route::get('/mechanics',                [CSEmergencyController::class, 'availableMechanics']);
+
+            // Vehicle
+            Route::get('/vehicles', [CSVehicleController::class, 'index']);
+            Route::get('/vehicles/{id}', [CSVehicleController::class, 'show']);
+            Route::put('/vehicles/{id}', [CSVehicleController::class, 'update']);
+            // Vehicle BY Plat
+            Route::post('/vehicles/find-by-plate', [CSVehicleController::class, 'findByPlate']);
 
         });
 

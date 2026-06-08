@@ -5,12 +5,12 @@ namespace App\Http\Controllers\Api\V1\CS;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
-class CSProfileController extends Controller
+class ProfileController extends Controller
 {
     /**
      * Display authenticated user profile
      */
-    public function profile(Request $request)
+    public function show(Request $request)
     {
         $user = $request->user();
 

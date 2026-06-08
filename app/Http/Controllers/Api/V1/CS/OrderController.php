@@ -129,7 +129,7 @@ class OrderController extends Controller
                 'user_id'      => $request->user_id,
                 'vehicle_id'   => $request->vehicle_id,
                 'workshop_id'  => $request->workshop_id,
-                'service_id'   => $request->service_id,
+                //'service_id'   => $request->service_id,
                 'complaint'    => $request->complaint,
                 'damage_photo' => $request->damage_photo,
                 'booking_date' => $scheduledAt,

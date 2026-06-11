@@ -50,4 +50,9 @@ class Order extends Model
     {
         return $this->hasMany(NOrderService::class, 'order_id');
     }
+
+    public function nOrderServices()
+    {
+        return $this->hasMany(NOrderService::class, 'order_id');
+    }
 }

@@ -8,15 +8,19 @@ use App\Http\Controllers\Api\V1\Admin\VehicleController as AdminVehicleControlle
 use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\CS\ProfileController as CSProfileController;
+use App\Http\Controllers\Api\V1\CS\CSProfileController as CSProfileController;
 use App\Http\Controllers\Api\V1\CS\DashboardController as CSDashboardController;
-use App\Http\Controllers\Api\V1\CS\OrderController as CSOrderController;
 use App\Http\Controllers\Api\V1\CS\EmergencyController as CSEmergencyController;
+use App\Http\Controllers\Api\V1\CS\OrderController as CSOrderController;
+use App\Http\Controllers\Api\V1\Customer\WorkshopController as CustomerWorkshopController;
+use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
+use App\Http\Controllers\Api\V1\Customer\EmergencyController as CustomerEmergencyController;
 use App\Http\Controllers\Api\V1\Customer\HomeController;
 use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
+use App\Http\Controllers\Api\V1\Customer\ServiceHistoryController;
 use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
-use App\Http\Controllers\Api\V1\CustomerService\ServiceDetailController;
+use App\Http\Controllers\Api\V1\Customer\VoucherController as CustomerVoucherController;
 use App\Http\Controllers\Api\V1\Mechanic\DashboardController as MechanicDashboardController;
 use App\Http\Controllers\Api\V1\Mechanic\EmergencyController;
 use App\Http\Controllers\Api\V1\Mechanic\MechanicProfileController;
@@ -24,13 +28,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-
-    // --- PUBLIC ROUTES (No Auth) ---
-    Route::get('services', [PublicServiceController::class, 'index']);
-    Route::get('workshops', [PublicWorkshopController::class, 'index']);
-    Route::get('workshops/{id}', [PublicWorkshopController::class, 'show']);
-    Route::get('workshops/nearby', [PublicWorkshopController::class, 'nearby']);
-
     // --- AUTHENTICATION ---
     Route::prefix('auth')->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
@@ -87,8 +84,8 @@ Route::prefix('v1')->group(function () {
             Route::get('dashboard', [CSDashboardController::class, 'index']);
 
             // Users Management
-            Route::get('/profile', [CSProfileController::class, 'show']);
-            Route::put('/profile', [CSProfileController::class, 'update']);
+            Route::get('/profile', [CSProfileController::class, 'profile']);
+            Route::put('/profile/phone', [CSProfileController::class, 'updatePhoneNumber']);
 
             // ORDER
             Route::post('orders/find-vehicle', [CSOrderController::class, 'findVehicle']);
@@ -119,10 +116,16 @@ Route::prefix('v1')->group(function () {
             Route::post('orders/{id}/complete', [MechanicDashboardController::class, 'completeOrder']);
             
             // Emergencies
-            Route::get('emergencies', [EmergencyController::class, 'index']);
-            Route::get('emergencies/{id}', [EmergencyController::class, 'show']);
-            Route::post('emergencies/{id}/accept', [EmergencyController::class, 'accept']);
-            Route::post('emergencies/{id}/invoice', [EmergencyController::class, 'createInvoice']);
+            Route::get('emergencies',                           [EmergencyController::class, 'index']);
+            Route::get('emergencies/services',                  [EmergencyController::class, 'getServices']);
+            Route::get('emergencies/{id}',                      [EmergencyController::class, 'show']);
+            Route::get('emergencies/{id}/total',                [EmergencyController::class, 'getTotal']);
+            Route::post('emergencies/{id}/accept',              [EmergencyController::class, 'accept']);
+            Route::post('emergencies/{id}/arrived',             [EmergencyController::class, 'arrived']);
+            Route::post('emergencies/{id}/towing',              [EmergencyController::class, 'requestTowing']);
+            Route::post('emergencies/{id}/add-service',         [EmergencyController::class, 'addService']);
+            Route::post('emergencies/{id}/proceed-payment',     [EmergencyController::class, 'proceedToPayment']);
+            Route::post('emergencies/{id}/complete-payment',    [EmergencyController::class, 'completePayment']);
 
             // Profile
             Route::get('profile', [MechanicProfileController::class, 'show']);
@@ -154,15 +157,22 @@ Route::prefix('v1')->group(function () {
             Route::post('/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
 
             // Endpoint Emergency
-            Route::get('/emergencies', [CustomerEmergencyController::class, 'index']);
-            Route::post('/emergencies', [CustomerEmergencyController::class, 'store']);
-            Route::get('/emergencies/{id}', [CustomerEmergencyController::class, 'show']);
-            Route::post('/emergencies/{id}/cancel', [CustomerEmergencyController::class, 'cancel']);
-
+            Route::get('/emergency/vehicles', [CustomerEmergencyController::class, 'getVehicles']);
+            Route::get('/emergency/nearest-workshop', [CustomerEmergencyController::class, 'getNearestWorkshop']);
+            Route::post('/emergency', [CustomerEmergencyController::class, 'store']);
+            
             // Endpoint Voucher (Read Only)
             Route::get('/vouchers', [CustomerVoucherController::class, 'index']);
             Route::post('/vouchers/validate', [CustomerVoucherController::class, 'validate']);
 
+            Route::get('/workshops', [CustomerWorkshopController::class, 'index']);
+            Route::get('/workshops/nearest', [CustomerWorkshopController::class, 'nearest']);
+
+            //Endpoint Riwayat Service Kendaraan Customer
+            Route::get('/riwayat/vehicles/{vehicleId}/service-history', [ServiceHistoryController::class, 'show']);
+            Route::get('/riwayat/vehicles', [ServiceHistoryController::class, 'vehicles']);
+            Route::get('/riwayat/vehicles/{vehicleId}/detail', [ServiceHistoryController::class, 'vehicleDetail']);
+            
             // Endpoint Profil Customer
             Route::get('/profile', [CustomerProfileController::class, 'show']);
             Route::put('/profile', [CustomerProfileController::class, 'update']);

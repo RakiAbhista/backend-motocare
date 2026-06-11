@@ -53,7 +53,7 @@ class HomeController extends Controller
 
         // 3. Daftar Kendaraan Milik Customer (Mengambil dari tabel asli)
         $vehicles = Vehicle::where('user_id', $userId)
-            ->get(['id', 'brand', 'model', 'plate_number', 'vehicle_type']);
+            ->get(['id', 'brand', 'model', 'plate_number', 'vehicle_type', 'manufacturing_year', 'registration_doc']);
 
         // 4. Status Panggilan Darurat Aktif (Tracker)
         $activeEmergency = null;

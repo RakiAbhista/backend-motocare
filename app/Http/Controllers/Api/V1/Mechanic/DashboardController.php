@@ -35,20 +35,57 @@ class DashboardController extends Controller
             ->where('status', 'completed')
             ->count();
 
-        // 2. Incoming queue — semua order pending/process hari ini
+        // 2. Incoming queue — order pending/process hari ini yang memenuhi kriteria:
+        // - service_type = 'booking'
+        // - ATAU service_type = 'emergency' dan is_towing = 'yes'
         $incomingQueue = Order::with([
                 'orderDetails.booking.vehicle',
                 'orderDetails.booking.user',
+                'orderDetails.emergency.vehicle',
+                'orderDetails.emergency.user',
             ])
             ->whereDate('created_at', $today)
             ->whereIn('status', ['pending', 'process'])
+            ->where(function ($query) {
+                $query->whereHas('orderDetails', function ($q) {
+                    $q->where('service_type', 'booking');
+                })
+                ->orWhere(function ($q) {
+                    $q->where('is_towing', 'yes')
+                      ->whereHas('orderDetails', function ($q2) {
+                          $q2->where('service_type', 'emergency');
+                      });
+                });
+            })
             ->orderBy('created_at', 'asc')
             ->get()
             ->map(function ($order) {
                 $detail = $order->orderDetails->first();
-                $booking = $detail?->booking;
-                $vehicle = $booking?->vehicle;
-                $customer = $booking?->user;
+                $vehicle = null;
+                $customer = null;
+
+                if ($detail) {
+                    if ($detail->service_type === 'booking') {
+                        $booking = $detail->booking;
+                        $vehicle = $booking?->vehicle;
+                        $customer = $booking?->user;
+                    } elseif ($detail->service_type === 'emergency') {
+                        $emergency = $detail->emergency;
+                        $customer = $emergency?->user;
+                        
+                        $vehicleRelation = $emergency?->vehicle;
+                        if ($vehicleRelation) {
+                            $vehicle = $vehicleRelation;
+                        } elseif ($emergency) {
+                            $vehicle = (object) [
+                                'brand' => $emergency->vehicle_brand,
+                                'model' => $emergency->vehicle_model,
+                                'manufacturing_year' => null,
+                                'plate_number' => $emergency->plate_number,
+                            ];
+                        }
+                    }
+                }
 
                 return [
                     'order_id'       => $order->id,
@@ -57,7 +94,7 @@ class DashboardController extends Controller
                     'vehicle'        => $vehicle ? [
                         'brand'            => $vehicle->brand,
                         'model'            => $vehicle->model,
-                        'manufacturing_year' => $vehicle->manufacturing_year,
+                        'manufacturing_year' => $vehicle->manufacturing_year ?? null,
                         'plate_number'     => $vehicle->plate_number,
                     ] : null,
                 ];
@@ -91,14 +128,45 @@ class DashboardController extends Controller
         $order = Order::with([
                 'orderDetails.booking.vehicle',
                 'orderDetails.booking.user',
+                'orderDetails.emergency.vehicle',
+                'orderDetails.emergency.user',
                 'nOrderServices.service',
             ])
             ->findOrFail($orderId);
 
         $detail  = $order->orderDetails->first();
-        $booking = $detail?->booking;
-        $vehicle = $booking?->vehicle;
-        $customer = $booking?->user;
+        $vehicle = null;
+        $customer = null;
+        $complaint = null;
+        $damagePhoto = null;
+
+        if ($detail) {
+            if ($detail->service_type === 'booking') {
+                $booking = $detail->booking;
+                $vehicle = $booking?->vehicle;
+                $customer = $booking?->user;
+                $complaint = $booking?->complaint;
+                $damagePhoto = $booking?->damage_photo;
+            } elseif ($detail->service_type === 'emergency') {
+                $emergency = $detail->emergency;
+                $customer = $emergency?->user;
+                $complaint = $emergency?->complaint;
+                $damagePhoto = $emergency?->damage_photo;
+                
+                $vehicleRelation = $emergency?->vehicle;
+                if ($vehicleRelation) {
+                    $vehicle = $vehicleRelation;
+                } elseif ($emergency) {
+                    $vehicle = (object) [
+                        'brand' => $emergency->vehicle_brand,
+                        'model' => $emergency->vehicle_model,
+                        'manufacturing_year' => null,
+                        'plate_number' => $emergency->plate_number,
+                        'vehicle_type' => $emergency->vehicle_type,
+                    ];
+                }
+            }
+        }
 
         return response()->json([
             'status' => 'success',
@@ -116,13 +184,13 @@ class DashboardController extends Controller
                 'vehicle' => $vehicle ? [
                     'brand'              => $vehicle->brand,
                     'model'              => $vehicle->model,
-                    'manufacturing_year' => $vehicle->manufacturing_year,
+                    'manufacturing_year' => $vehicle->manufacturing_year ?? null,
                     'plate_number'       => $vehicle->plate_number,
-                    'vehicle_type'       => $vehicle->vehicle_type,
+                    'vehicle_type'       => $vehicle->vehicle_type ?? null,
                 ] : null,
-                'complaint'    => $booking?->complaint,
-                'damage_photo' => $booking?->damage_photo
-                    ? url('storage/' . $booking->damage_photo)
+                'complaint'    => $complaint,
+                'damage_photo' => $damagePhoto
+                    ? url('storage/' . $damagePhoto)
                     : null,
                 'services' => $order->nOrderServices->map(fn($s) => [
                     'service_name' => $s->service?->service_name,
@@ -168,8 +236,15 @@ class DashboardController extends Controller
             ], 400);
         }
 
-        // Update status menjadi process
-        $order->update(['status' => 'process']);
+        // Dapatkan mechanic_id dari user yang login
+        $user = $request->user();
+        $mechanic = Mechanic::where('user_id', $user->id)->firstOrFail();
+
+        // Update status menjadi process dan isi mechanic_id
+        $order->update([
+            'status' => 'process',
+            'mechanic_id' => $mechanic->id,
+        ]);
 
         return response()->json([
             'status'  => 'success',
@@ -177,6 +252,7 @@ class DashboardController extends Controller
             'data'    => [
                 'order_id' => $order->id,
                 'status'   => $order->status,
+                'mechanic_id' => $order->mechanic_id,
             ],
         ], 200);
     }

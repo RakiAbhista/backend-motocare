@@ -117,6 +117,7 @@ Route::prefix('v1')->group(function () {
             
             // Emergencies
             Route::get('emergencies',                           [EmergencyController::class, 'index']);
+            Route::get('emergencies/history',                   [EmergencyController::class, 'history']);
             Route::get('emergencies/services',                  [EmergencyController::class, 'getServices']);
             Route::get('emergencies/{id}',                      [EmergencyController::class, 'show']);
             Route::get('emergencies/{id}/total',                [EmergencyController::class, 'getTotal']);
@@ -124,8 +125,10 @@ Route::prefix('v1')->group(function () {
             Route::post('emergencies/{id}/arrived',             [EmergencyController::class, 'arrived']);
             Route::post('emergencies/{id}/towing',              [EmergencyController::class, 'requestTowing']);
             Route::post('emergencies/{id}/add-service',         [EmergencyController::class, 'addService']);
+            Route::delete('emergencies/{id}/service/{serviceId}',[EmergencyController::class, 'removeService']);
             Route::post('emergencies/{id}/proceed-payment',     [EmergencyController::class, 'proceedToPayment']);
             Route::post('emergencies/{id}/complete-payment',    [EmergencyController::class, 'completePayment']);
+            Route::post('emergencies/{id}/cancel',              [EmergencyController::class, 'cancel']);
 
             // Profile
             Route::get('profile', [MechanicProfileController::class, 'show']);

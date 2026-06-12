@@ -48,6 +48,36 @@ class EmergencyController extends Controller
         ]);
     }
 
+    public function history()
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => true,
+                'data'    => [],
+            ]);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergencies = Emergency::whereHas('order', function ($query) {
+                $query->whereIn('status', ['completed', 'canceled', 'cancelled']);
+            })
+            ->with([
+                'user:id,name,phone_number',
+                'vehicle:id,brand,model,plate_number',
+                'order',
+            ])
+            ->where('mechanic_id', $mechanicId)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($e) => $this->formatEmergency($e));
+
+        return response()->json([
+            'success' => true,
+            'data'    => $emergencies,
+        ]);
+    }
+
     /**
      * Function 2 — Terima panggilan: pending → dispatched
      */
@@ -322,6 +352,50 @@ class EmergencyController extends Controller
     }
 
     /**
+     * Function 6.5 — Remove service from order
+     */
+    public function removeService(Request $request, $emergencyId, $serviceId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        DB::transaction(function () use ($emergency, $serviceId) {
+            NOrderService::where('id', $serviceId)->where('order_id', $emergency->order->id)->delete();
+
+            // Update total_price di order
+            $total = NOrderService::where('order_id', $emergency->order->id)->sum('price');
+            $emergency->order->update(['total_price' => $total]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Servis berhasil dihapus',
+            'data'    => [
+                'order_id'    => $emergency->order->id,
+                'total_price' => $emergency->order->fresh()->total_price,
+            ],
+        ]);
+    }
+
+    /**
      * Function 7 — Get list services (untuk dropdown)
      */
     public function getServices()
@@ -501,6 +575,68 @@ class EmergencyController extends Controller
                 'payment_type'   => $request->payment_type,
                 'payment_proof'  => url('storage/' . $photoPath),
                 'total_price'    => $emergency->order->total_price,
+            ],
+        ]);
+    }
+
+    /**
+     * Function 11 — Batalkan emergency (order fiktif): order → cancelled, emergency → cancelled
+     */
+    public function cancel($emergencyId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        // Hanya bisa cancel jika status order masih pending atau process
+        if (!in_array($emergency->order->status, ['pending', 'process'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order tidak dapat dibatalkan karena status sudah ' . $emergency->order->status,
+            ], 422);
+        }
+
+        DB::transaction(function () use ($emergency, $mechanic) {
+            // Hapus semua service terkait order ini
+            NOrderService::where('order_id', $emergency->order->id)->delete();
+
+            // Update status order
+            $emergency->order->update([
+                'status'      => 'cancelled',
+                'total_price' => 0,
+            ]);
+
+            // Update status emergency
+            $emergency->update(['status' => 'cancelled']);
+
+            // Mekanik kembali available
+            $mechanic->update(['status' => 'available']);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order berhasil dibatalkan',
+            'data'    => [
+                'order_id'         => $emergency->order->id,
+                'order_status'     => 'cancelled',
+                'emergency_status' => 'cancelled',
             ],
         ]);
     }

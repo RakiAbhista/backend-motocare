@@ -89,8 +89,13 @@ Route::prefix('v1')->group(function () {
 
             // ORDER
             Route::post('orders/find-vehicle', [CSOrderController::class, 'findVehicle']);
+            Route::get('orders/services', [CSOrderController::class, 'getServices']);
             Route::get('orders', [CSOrderController::class, 'index']);
             Route::get('orders/{id}', [CSOrderController::class, 'show']);
+            Route::get('orders/{id}/total', [CSOrderController::class, 'getTotal']);
+            Route::post('orders/{id}/add-service', [CSOrderController::class, 'addService']);
+            Route::delete('orders/{id}/service/{serviceId}', [CSOrderController::class, 'removeService']);
+            Route::post('orders/{id}/complete-payment', [CSOrderController::class, 'completePayment']);
             Route::post('orders', [CSOrderController::class, 'store']);
             Route::delete('orders/{order}', [CSOrderController::class, 'destroy']);
             

@@ -35,57 +35,20 @@ class DashboardController extends Controller
             ->where('status', 'completed')
             ->count();
 
-        // 2. Incoming queue — order pending/process hari ini yang memenuhi kriteria:
-        // - service_type = 'booking'
-        // - ATAU service_type = 'emergency' dan is_towing = 'yes'
+        // 2. Incoming queue — semua order pending/process hari ini
         $incomingQueue = Order::with([
                 'orderDetails.booking.vehicle',
                 'orderDetails.booking.user',
-                'orderDetails.emergency.vehicle',
-                'orderDetails.emergency.user',
             ])
             ->whereDate('created_at', $today)
             ->whereIn('status', ['pending', 'process'])
-            ->where(function ($query) {
-                $query->whereHas('orderDetails', function ($q) {
-                    $q->where('service_type', 'booking');
-                })
-                ->orWhere(function ($q) {
-                    $q->where('is_towing', 'yes')
-                      ->whereHas('orderDetails', function ($q2) {
-                          $q2->where('service_type', 'emergency');
-                      });
-                });
-            })
             ->orderBy('created_at', 'asc')
             ->get()
             ->map(function ($order) {
                 $detail = $order->orderDetails->first();
-                $vehicle = null;
-                $customer = null;
-
-                if ($detail) {
-                    if ($detail->service_type === 'booking') {
-                        $booking = $detail->booking;
-                        $vehicle = $booking?->vehicle;
-                        $customer = $booking?->user;
-                    } elseif ($detail->service_type === 'emergency') {
-                        $emergency = $detail->emergency;
-                        $customer = $emergency?->user;
-                        
-                        $vehicleRelation = $emergency?->vehicle;
-                        if ($vehicleRelation) {
-                            $vehicle = $vehicleRelation;
-                        } elseif ($emergency) {
-                            $vehicle = (object) [
-                                'brand' => $emergency->vehicle_brand,
-                                'model' => $emergency->vehicle_model,
-                                'manufacturing_year' => null,
-                                'plate_number' => $emergency->plate_number,
-                            ];
-                        }
-                    }
-                }
+                $booking = $detail?->booking;
+                $vehicle = $booking?->vehicle;
+                $customer = $booking?->user;
 
                 return [
                     'order_id'       => $order->id,
@@ -94,7 +57,7 @@ class DashboardController extends Controller
                     'vehicle'        => $vehicle ? [
                         'brand'            => $vehicle->brand,
                         'model'            => $vehicle->model,
-                        'manufacturing_year' => $vehicle->manufacturing_year ?? null,
+                        'manufacturing_year' => $vehicle->manufacturing_year,
                         'plate_number'     => $vehicle->plate_number,
                     ] : null,
                 ];
@@ -128,45 +91,14 @@ class DashboardController extends Controller
         $order = Order::with([
                 'orderDetails.booking.vehicle',
                 'orderDetails.booking.user',
-                'orderDetails.emergency.vehicle',
-                'orderDetails.emergency.user',
                 'nOrderServices.service',
             ])
             ->findOrFail($orderId);
 
         $detail  = $order->orderDetails->first();
-        $vehicle = null;
-        $customer = null;
-        $complaint = null;
-        $damagePhoto = null;
-
-        if ($detail) {
-            if ($detail->service_type === 'booking') {
-                $booking = $detail->booking;
-                $vehicle = $booking?->vehicle;
-                $customer = $booking?->user;
-                $complaint = $booking?->complaint;
-                $damagePhoto = $booking?->damage_photo;
-            } elseif ($detail->service_type === 'emergency') {
-                $emergency = $detail->emergency;
-                $customer = $emergency?->user;
-                $complaint = $emergency?->complaint;
-                $damagePhoto = $emergency?->damage_photo;
-                
-                $vehicleRelation = $emergency?->vehicle;
-                if ($vehicleRelation) {
-                    $vehicle = $vehicleRelation;
-                } elseif ($emergency) {
-                    $vehicle = (object) [
-                        'brand' => $emergency->vehicle_brand,
-                        'model' => $emergency->vehicle_model,
-                        'manufacturing_year' => null,
-                        'plate_number' => $emergency->plate_number,
-                        'vehicle_type' => $emergency->vehicle_type,
-                    ];
-                }
-            }
-        }
+        $booking = $detail?->booking;
+        $vehicle = $booking?->vehicle;
+        $customer = $booking?->user;
 
         return response()->json([
             'status' => 'success',
@@ -184,13 +116,13 @@ class DashboardController extends Controller
                 'vehicle' => $vehicle ? [
                     'brand'              => $vehicle->brand,
                     'model'              => $vehicle->model,
-                    'manufacturing_year' => $vehicle->manufacturing_year ?? null,
+                    'manufacturing_year' => $vehicle->manufacturing_year,
                     'plate_number'       => $vehicle->plate_number,
-                    'vehicle_type'       => $vehicle->vehicle_type ?? null,
+                    'vehicle_type'       => $vehicle->vehicle_type,
                 ] : null,
-                'complaint'    => $complaint,
-                'damage_photo' => $damagePhoto
-                    ? url('storage/' . $damagePhoto)
+                'complaint'    => $booking?->complaint,
+                'damage_photo' => $booking?->damage_photo
+                    ? url('storage/' . $booking->damage_photo)
                     : null,
                 'services' => $order->nOrderServices->map(fn($s) => [
                     'service_name' => $s->service?->service_name,
@@ -203,7 +135,7 @@ class DashboardController extends Controller
     public function updateStatus(Request $request)
     {
         $request->validate([
-            'status' => 'required|in:available,busy',
+            'status' => 'required|in:available,unavailable',
         ]);
 
         $mechanic = Mechanic::firstOrCreate(
@@ -236,11 +168,20 @@ class DashboardController extends Controller
             ], 400);
         }
 
-        // Dapatkan mechanic_id dari user yang login
+        // Dapatkan mechanic dari user yang login dan pastikan tersedia
         $user = $request->user();
         $mechanic = Mechanic::where('user_id', $user->id)->firstOrFail();
 
-        // Update status menjadi process dan isi mechanic_id
+        if ($mechanic->status !== 'available') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Mekanik tidak tersedia untuk menerima order.',
+            ], 422);
+        }
+
+        // Set mekanik menjadi unavailable dan update order menjadi process
+        $mechanic->update(['status' => 'unavailable']);
+
         $order->update([
             'status' => 'process',
             'mechanic_id' => $mechanic->id,
@@ -273,8 +214,16 @@ class DashboardController extends Controller
             ], 400);
         }
 
-        // Update status menjadi payment
+        // Update status order menjadi payment
         $order->update(['status' => 'payment']);
+
+        // Jika order memiliki mechanic, set status mekanik menjadi available
+        if ($order->mechanic_id) {
+            $mechanic = Mechanic::find($order->mechanic_id);
+            if ($mechanic) {
+                $mechanic->update(['status' => 'available']);
+            }
+        }
 
         return response()->json([
             'status'  => 'success',

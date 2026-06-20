@@ -106,7 +106,6 @@ class EmergencyController extends Controller
 
         DB::transaction(function () use ($emergency, $mechanic) {
             $emergency->update(['status' => 'dispatched']);
-            $mechanic->update(['status' => 'busy']);
         });
 
         return response()->json([

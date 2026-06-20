@@ -33,7 +33,7 @@ class EmergencyController extends Controller
                 'plate_number'   => $emergency->vehicle?->plate_number,
                 'mechanic'       => $emergency->mechanic ? [
                     'id'   => $emergency->mechanic->id,
-                    'name' => $emergency->mechanic->name,
+                    'name' => $emergency->mechanic->user?->name,
                 ] : null,
                 'status'         => $emergency->status,
                 'created_at'     => $emergency->created_at,
@@ -73,8 +73,8 @@ class EmergencyController extends Controller
                 'description'    => $emergency->description,
                 'mechanic'       => $emergency->mechanic ? [
                     'id'    => $emergency->mechanic->id,
-                    'name'  => $emergency->mechanic->name,
-                    'phone' => $emergency->mechanic->phone ?? null,
+                    'name'  => $emergency->mechanic->user?->name,
+                    'phone' => $emergency->mechanic->user?->phone_number ?? null,
                 ] : null,
                 'status'         => $emergency->status,
                 'created_at'     => $emergency->created_at,
@@ -111,9 +111,19 @@ class EmergencyController extends Controller
 
         $mechanic = Mechanic::find($request->mechanic_id);
 
+        // Pastikan mekanik tersedia sebelum assign
+        if (!$mechanic || $mechanic->status !== 'available') {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Mekanik tidak tersedia untuk di-assign'
+            ], 422);
+        }
+
+        // Ubah status mekanik menjadi unavailable saat diassign
+        $mechanic->update(['status' => 'unavailable']);
+
         $emergency->update([
             'mechanic_id' => $mechanic->id,
-            'status'      => 'dispatched',
         ]);
 
         return response()->json([
@@ -122,7 +132,7 @@ class EmergencyController extends Controller
             'data'    => [
                 'emergency_id'  => $emergency->id,
                 'mechanic_id'   => $mechanic->id,
-                'mechanic_name' => $mechanic->name,
+                'mechanic_name' => $mechanic->user?->name,
                 'status'        => $emergency->status,
             ]
         ], 200);

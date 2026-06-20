@@ -181,4 +181,205 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get list of available services (untuk dropdown tambah service)
+     */
+    public function getServices()
+    {
+        $services = Service::select('id', 'service_name', 'base_price')
+            ->orderBy('service_name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $services,
+        ]);
+    }
+
+    /**
+     * Get total harga dan daftar service berdasarkan order
+     */
+    public function getTotal($id)
+    {
+        $order = Order::with('orderServices.service')->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order tidak ditemukan',
+            ], 404);
+        }
+
+        $services = $order->orderServices->map(fn($os) => [
+            'id'            => $os->id,
+            'service_id'    => $os->service_id,
+            'service_name'  => $os->service->service_name ?? $os->additional_service,
+            'price'         => $os->price,
+            'is_additional' => is_null($os->service_id),
+        ]);
+
+        $total = $services->sum('price');
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'order_id'    => $order->id,
+                'services'    => $services,
+                'total_price' => $total,
+                'is_towing'   => $order->is_towing,
+            ],
+        ]);
+    }
+
+    /**
+     * Tambah service ke order (pilih existing atau manual)
+     */
+    public function addService(Request $request, $id)
+    {
+        $request->validate([
+            'service_id'         => 'nullable|exists:services,id',
+            'additional_service' => 'nullable|string|max:255',
+            'price'              => 'required_without:service_id|nullable|numeric|min:0',
+        ]);
+
+        if (!$request->service_id && !$request->additional_service) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pilih service yang ada atau isi nama additional service',
+            ], 422);
+        }
+
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order tidak ditemukan',
+            ], 404);
+        }
+
+        DB::transaction(function () use ($request, $order) {
+            $price = $request->price;
+
+            if ($request->service_id && !$price) {
+                $service = Service::find($request->service_id);
+                $price   = $service->base_price;
+            }
+
+            NOrderService::create([
+                'order_id'           => $order->id,
+                'service_id'         => $request->service_id,
+                'additional_service' => $request->additional_service,
+                'price'              => $price,
+            ]);
+
+            // Update total_price di order
+            $total = NOrderService::where('order_id', $order->id)->sum('price');
+            $order->update(['total_price' => $total]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Servis berhasil ditambahkan',
+            'data'    => [
+                'order_id'    => $order->id,
+                'total_price' => $order->fresh()->total_price,
+                'services'    => NOrderService::with('service')
+                    ->where('order_id', $order->id)
+                    ->get()
+                    ->map(fn($os) => [
+                        'id'                 => $os->id,
+                        'service_id'         => $os->service_id,
+                        'service_name'       => $os->service->service_name ?? $os->additional_service,
+                        'price'              => $os->price,
+                        'is_additional'      => is_null($os->service_id),
+                    ]),
+            ],
+        ]);
+    }
+
+    /**
+     * Hapus service dari order
+     */
+    public function removeService($id, $serviceId)
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order tidak ditemukan',
+            ], 404);
+        }
+
+        DB::transaction(function () use ($order, $serviceId) {
+            NOrderService::where('id', $serviceId)
+                ->where('order_id', $order->id)
+                ->delete();
+
+            // Update total_price di order
+            $total = NOrderService::where('order_id', $order->id)->sum('price');
+            $order->update(['total_price' => $total]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Servis berhasil dihapus',
+            'data'    => [
+                'order_id'    => $order->id,
+                'total_price' => $order->fresh()->total_price,
+            ],
+        ]);
+    }
+
+    /**
+     * Selesaikan pembayaran: upload bukti, order → completed
+     */
+    public function completePayment(Request $request, $id)
+    {
+        $request->validate([
+            'payment_proof' => 'required|image|mimes:jpeg,png,jpg|max:5120',
+            'payment_type'  => 'required|string|in:cash,transfer',
+        ]);
+
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order tidak ditemukan',
+            ], 404);
+        }
+
+        if ($order->status !== 'payment') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Status order harus payment untuk diselesaikan',
+            ], 422);
+        }
+
+        $photoPath = $request->file('payment_proof')
+            ->store('payment_proofs', 'public');
+
+        $order->update([
+            'status'         => 'completed',
+            'payment_status' => 'settlement',
+            'payment_type'   => $request->payment_type,
+            'payment_url'    => url('storage/' . $photoPath),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pembayaran selesai, order completed',
+            'data'    => [
+                'order_id'       => $order->id,
+                'order_status'   => 'completed',
+                'payment_status' => 'settlement',
+                'payment_type'   => $request->payment_type,
+                'payment_proof'  => url('storage/' . $photoPath),
+                'total_price'    => $order->total_price,
+            ],
+        ]);
+    }
 }

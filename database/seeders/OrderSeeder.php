@@ -44,7 +44,7 @@ class OrderSeeder extends Seeder
             'mechanic_id' => 2,
             'voucher_id' => 2,
             'total_price' => 300000,
-            'status' => 'payment',
+            'status' => 'pending',
             'payment_status' => 'pending',
             'payment_type' => 'transfer_bank',
             'transaction_id' => 'TRX002',

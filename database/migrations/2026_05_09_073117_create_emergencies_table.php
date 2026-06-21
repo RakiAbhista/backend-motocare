@@ -24,6 +24,7 @@ return new class extends Migration
             $table->decimal('latitude', 10, 8);
             $table->decimal('longitude', 11, 8);
             $table->string('damage_photo')->nullable();
+            $table->string('complaint', 255)->nullable();
             $table->enum('status', ['pending', 'dispatched', 'resolved'])->default('pending');
             $table->timestamp('requested_at');
             $table->timestamps();

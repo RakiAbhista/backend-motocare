@@ -25,4 +25,25 @@ class CSProfileController extends Controller
             ]
         ], 200);
     }
+
+    /**
+     * Update user phone number
+     */
+    public function updatePhoneNumber(Request $request)
+    {
+        $request->validate([
+            'phone_number' => 'required|string|min:10|max:15',
+        ]);
+
+        $user = $request->user();
+        $user->update(['phone_number' => $request->phone_number]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Nomor telepon berhasil diperbarui.',
+            'data' => [
+                'phone_number' => $user->phone_number,
+            ]
+        ], 200);
+    }
 }

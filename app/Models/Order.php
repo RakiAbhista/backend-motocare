@@ -14,6 +14,7 @@ class Order extends Model
         'voucher_id',
         'total_price',
         'status',
+        'is_towing',
         'payment_status',
         'payment_type',
         'transaction_id',
@@ -46,6 +47,11 @@ class Order extends Model
 
     // Relasi ke list service & additional service
     public function orderServices()
+    {
+        return $this->hasMany(NOrderService::class, 'order_id');
+    }
+
+    public function nOrderServices()
     {
         return $this->hasMany(NOrderService::class, 'order_id');
     }

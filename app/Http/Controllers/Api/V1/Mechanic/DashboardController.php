@@ -3,112 +3,235 @@
 namespace App\Http\Controllers\Api\V1\Mechanic;
 
 use App\Http\Controllers\Controller;
-use App\Models\Emergency;
 use App\Models\Order;
 use App\Models\Mechanic;
+use App\Models\OrderDetail;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    /**
-     * Get mechanic dashboard summary data.
-     */
     public function index(Request $request)
     {
         $user = $request->user();
-        
-        // Retrieve or create the mechanic record linked to this user
+
         $mechanic = Mechanic::with('user')->firstOrCreate(
             ['user_id' => $user->id],
             ['status' => 'available']
         );
 
-        // 1. Calculate stats: total completed jobs (both emergency & standard orders)
-        // Standard orders or emergency orders handled by this mechanic that are completed
-        $totalCompletedJobs = Order::where('mechanic_id', $mechanic->id)
+        $today = Carbon::today();
+
+        // 1. Total orders by status (hari ini)
+        $totalProcess = Order::whereDate('created_at', $today)
+            ->where('status', 'process')
+            ->count();
+
+        $totalPending = Order::whereDate('created_at', $today)
+            ->where('status', 'pending')
+            ->count();
+
+        $totalCompleted = Order::whereDate('created_at', $today)
             ->where('status', 'completed')
             ->count();
 
-        // 2. Look for active emergency request assigned to this mechanic (pending or dispatched)
-        $activeEmergency = Emergency::with(['user', 'vehicle', 'workshop'])
-            ->where('mechanic_id', $mechanic->id)
-            ->whereIn('status', ['pending', 'dispatched'])
-            ->orderBy('requested_at', 'desc')
-            ->first();
+        // 2. Incoming queue — semua order pending/process hari ini
+        $incomingQueue = Order::with([
+                'orderDetails.booking.vehicle',
+                'orderDetails.booking.user',
+            ])
+            ->whereDate('created_at', $today)
+            ->whereIn('status', ['pending', 'process'])
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($order) {
+                $detail = $order->orderDetails->first();
+                $booking = $detail?->booking;
+                $vehicle = $booking?->vehicle;
+                $customer = $booking?->user;
 
-        // 3. Look for active normal order assigned to this mechanic (in process)
-        $activeOrder = Order::with(['orderDetails', 'nOrderServices'])
-            ->where('mechanic_id', $mechanic->id)
-            ->where('status', 'process')
-            ->orderBy('created_at', 'desc')
-            ->first();
-
-        // Combine into one active job structure if exists
-        $activeJob = null;
-        if ($activeEmergency) {
-            $activeJob = [
-                'type' => 'emergency',
-                'details' => $activeEmergency
-            ];
-        } elseif ($activeOrder) {
-            $activeJob = [
-                'type' => 'order',
-                'details' => $activeOrder
-            ];
-        }
+                return [
+                    'order_id'       => $order->id,
+                    'status'         => $order->status,
+                    'customer_name'  => $customer?->name,
+                    'vehicle'        => $vehicle ? [
+                        'brand'            => $vehicle->brand,
+                        'model'            => $vehicle->model,
+                        'manufacturing_year' => $vehicle->manufacturing_year,
+                        'plate_number'     => $vehicle->plate_number,
+                    ] : null,
+                ];
+            });
 
         return response()->json([
             'status' => 'success',
             'data' => [
                 'mechanic' => [
-                    'id' => $mechanic->id,
+                    'id'     => $mechanic->id,
                     'status' => $mechanic->status,
-                    'user' => [
-                        'id' => $user->id,
-                        'name' => $user->name,
-                        'email' => $user->email,
+                    'user'   => [
+                        'id'           => $user->id,
+                        'name'         => $user->name,
+                        'email'        => $user->email,
                         'phone_number' => $user->phone_number,
-                        'points' => $user->points,
-                    ]
+                    ],
                 ],
                 'stats' => [
-                    'total_completed_jobs' => $totalCompletedJobs,
+                    'total_process'   => $totalProcess,
+                    'total_pending'   => $totalPending,
+                    'total_completed' => $totalCompleted,
                 ],
-                'active_job' => $activeJob
+                'incoming_queue' => $incomingQueue,
             ]
         ], 200);
     }
 
-    /**
-     * Toggle or update mechanic availability status.
-     */
-    public function updateStatus(Request $request)
+    public function show(Request $request, $orderId)
     {
-        $request->validate([
-            'status' => 'required|in:available,busy',
-        ]);
+        $order = Order::with([
+                'orderDetails.booking.vehicle',
+                'orderDetails.booking.user',
+                'nOrderServices.service',
+            ])
+            ->findOrFail($orderId);
 
-        $user = $request->user();
-        
-        $mechanic = Mechanic::where('user_id', $user->id)->first();
-        
-        if (!$mechanic) {
-            $mechanic = Mechanic::create([
-                'user_id' => $user->id,
-                'status' => $request->status,
-            ]);
-        } else {
-            $mechanic->update([
-                'status' => $request->status,
-            ]);
-        }
+        $detail  = $order->orderDetails->first();
+        $booking = $detail?->booking;
+        $vehicle = $booking?->vehicle;
+        $customer = $booking?->user;
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Status berhasil diperbarui.',
             'data' => [
-                'status' => $mechanic->status,
+                'order_id'       => $order->id,
+                'status'         => $order->status,
+                'payment_status' => $order->payment_status,
+                'total_price'    => $order->total_price,
+                'is_towing'      => $order->is_towing,
+                'customer' => [
+                    'name'         => $customer?->name,
+                    'phone_number' => $customer?->phone_number,
+                    'email'        => $customer?->email,
+                ],
+                'vehicle' => $vehicle ? [
+                    'brand'              => $vehicle->brand,
+                    'model'              => $vehicle->model,
+                    'manufacturing_year' => $vehicle->manufacturing_year,
+                    'plate_number'       => $vehicle->plate_number,
+                    'vehicle_type'       => $vehicle->vehicle_type,
+                ] : null,
+                'complaint'    => $booking?->complaint,
+                'damage_photo' => $booking?->damage_photo
+                    ? url('storage/' . $booking->damage_photo)
+                    : null,
+                'services' => $order->nOrderServices->map(fn($s) => [
+                    'service_name' => $s->service?->service_name,
+                    'price'        => $s->price,
+                ]),
             ]
+        ], 200);
+    }
+
+    public function updateStatus(Request $request)
+    {
+        $request->validate([
+            'status' => 'required|in:available,unavailable',
+        ]);
+
+        $mechanic = Mechanic::firstOrCreate(
+            ['user_id' => $request->user()->id],
+            ['status' => $request->status]
+        );
+
+        $mechanic->update(['status' => $request->status]);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Status berhasil diperbarui.',
+            'data'    => ['status' => $mechanic->status],
+        ], 200);
+    }
+
+    public function acceptOrder(Request $request, $orderId)
+    {
+        $request->validate([
+            'order_id' => 'nullable|numeric',
+        ]);
+
+        $order = Order::findOrFail($orderId);
+
+        // Validasi status harus pending
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Order harus berstatus pending untuk diterima.',
+            ], 400);
+        }
+
+        // Dapatkan mechanic dari user yang login dan pastikan tersedia
+        $user = $request->user();
+        $mechanic = Mechanic::where('user_id', $user->id)->firstOrFail();
+
+        if ($mechanic->status !== 'available') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Mekanik tidak tersedia untuk menerima order.',
+            ], 422);
+        }
+
+        // Set mekanik menjadi unavailable dan update order menjadi process
+        $mechanic->update(['status' => 'unavailable']);
+
+        $order->update([
+            'status' => 'process',
+            'mechanic_id' => $mechanic->id,
+        ]);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Order berhasil diterima.',
+            'data'    => [
+                'order_id' => $order->id,
+                'status'   => $order->status,
+                'mechanic_id' => $order->mechanic_id,
+            ],
+        ], 200);
+    }
+
+    public function completeOrder(Request $request, $orderId)
+    {
+        $request->validate([
+            'order_id' => 'nullable|numeric',
+        ]);
+
+        $order = Order::findOrFail($orderId);
+
+        // Validasi status harus process
+        if ($order->status !== 'process') {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Order harus berstatus process untuk diselesaikan.',
+            ], 400);
+        }
+
+        // Update status order menjadi payment
+        $order->update(['status' => 'payment']);
+
+        // Jika order memiliki mechanic, set status mekanik menjadi available
+        if ($order->mechanic_id) {
+            $mechanic = Mechanic::find($order->mechanic_id);
+            if ($mechanic) {
+                $mechanic->update(['status' => 'available']);
+            }
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Order berhasil diselesaikan.',
+            'data'    => [
+                'order_id' => $order->id,
+                'status'   => $order->status,
+            ],
         ], 200);
     }
 }

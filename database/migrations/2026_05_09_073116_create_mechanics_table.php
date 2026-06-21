@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('mechanics', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->string('status')->default('available'); // misal: available, busy
+            $table->enum('status', ['available', 'unavailable'])->default('available'); 
             $table->timestamps();
         });
     }

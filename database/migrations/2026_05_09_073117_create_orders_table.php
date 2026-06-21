@@ -16,10 +16,11 @@ return new class extends Migration
             $table->foreignId('mechanic_id')->nullable()->constrained('mechanics')->nullOnDelete();
             $table->foreignId('voucher_id')->nullable()->constrained('vouchers')->nullOnDelete();
             
-            $table->enum('status', ['process', 'payment', 'completed', 'canceled'])->default('process');
+            $table->enum('status', ['pending', 'process', 'payment', 'completed', 'canceled'])->default('process');
             $table->enum('payment_status', ['pending', 'settlement', 'expired'])->default('pending');
             $table->decimal('total_price', 12, 2)->nullable();
             $table->string('payment_type')->nullable();
+            $table->enum('is_towing', ['yes', 'no'])->default('no')->nullable();
             $table->string('transaction_id')->nullable();
             $table->string('payment_url')->nullable();
             

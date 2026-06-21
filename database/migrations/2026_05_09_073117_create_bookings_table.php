@@ -16,8 +16,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->foreignId('vehicle_id')->constrained('vehicles')->cascadeOnDelete();
             $table->foreignId('workshop_id')->constrained('workshops')->cascadeOnDelete();
-            $table->foreignId('service_id')->constrained('services')->cascadeOnDelete();
-            $table->text('complaint');
+            $table->string('complaint', 255)->nullable();
             $table->string('damage_photo')->nullable();
             $table->timestamp('booking_date');
             $table->timestamps();

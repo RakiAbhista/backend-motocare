@@ -18,6 +18,7 @@ class Emergency extends Model
         'latitude',
         'longitude',
         'damage_photo',
+        'complaint',
         'status',
         'requested_at',
     ];
@@ -45,5 +46,22 @@ class Emergency extends Model
     public function workshop()
     {
         return $this->belongsTo(Workshop::class);
+    }
+
+    public function orderDetail()
+    {
+        return $this->morphOne(OrderDetail::class, 'source', 'service_type', 'reference_id');
+    }
+
+    public function order()
+    {
+        return $this->hasOneThrough(
+            Order::class,
+            OrderDetail::class,
+            'reference_id',
+            'id',
+            'id',
+            'order_id'
+        )->where('order_details.service_type', 'emergency');
     }
 }

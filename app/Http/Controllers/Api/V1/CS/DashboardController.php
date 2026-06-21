@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\CS;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
@@ -13,27 +14,31 @@ class DashboardController extends Controller
         // User CS yang sedang login
         $user = $request->user();
 
-        // Statistik
-        $totalOrders = Order::count();
+        // Statistik (hari ini)
+        $today = Carbon::today();
 
-        $completedRepairs = Order::where(
-            'status',
-            'completed'
-        )->count();
+        $totalOrders = Order::whereDate('created_at', $today)->count();
 
-        // Latest Orders
+        $completedRepairs = Order::where('status', 'completed')
+            ->whereDate('created_at', $today)
+            ->count();
+
+        // Latest Orders (only pending/process/payment) and must have booking-type order detail
         $orders = Order::with([
             'orderDetails.booking.user',
             'orderDetails.booking.vehicle'
         ])
+        ->whereIn('status', ['pending', 'process', 'payment'])
+        ->whereHas('orderDetails', function ($q) {
+            $q->where('service_type', 'booking');
+        })
         ->latest()
-        ->take(5)
         ->get();
 
         // Format data order untuk Flutter
         $latestOrders = $orders->map(function ($order) {
 
-            $detail = $order->orderDetails->first();
+            $detail = $order->orderDetails->where('service_type', 'booking')->first();
 
             $booking = $detail?->booking;
 

@@ -5,245 +5,665 @@ namespace App\Http\Controllers\Api\V1\Mechanic;
 use App\Http\Controllers\Controller;
 use App\Models\Emergency;
 use App\Models\Order;
-use App\Models\OrderDetail;
 use App\Models\NOrderService;
+use App\Models\Service;
 use App\Models\Mechanic;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class EmergencyController extends Controller
 {
     /**
-     * List all emergencies assigned to this mechanic.
+     * Function 1 — List semua order emergency yang di-assign ke mechanic login
      */
-    public function index(Request $request)
+    public function index()
     {
-        $user = $request->user();
-        $mechanic = Mechanic::where('user_id', $user->id)->first();
-
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
         if (!$mechanic) {
             return response()->json([
-                'status' => 'success',
-                'data' => []
-            ], 200);
+                'success' => true,
+                'data'    => [],
+            ]);
         }
+        $mechanicId = $mechanic->id;
 
-        $query = Emergency::with(['user', 'vehicle', 'workshop'])
-            ->where('mechanic_id', $mechanic->id);
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-
-        $emergencies = $query->orderBy('requested_at', 'desc')->get();
+        $emergencies = Emergency::whereHas('order', function ($query) {
+                $query->whereIn('status', ['pending', 'process', 'payment']);
+            })
+            ->with([
+                'user:id,name,phone_number',
+                'vehicle:id,brand,model,plate_number',
+                'order',
+            ])
+            ->where('mechanic_id', $mechanicId)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($e) => $this->formatEmergency($e));
 
         return response()->json([
-            'status' => 'success',
-            'data' => $emergencies
-        ], 200);
+            'success' => true,
+            'data'    => $emergencies,
+        ]);
+    }
+
+    public function history()
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => true,
+                'data'    => [],
+            ]);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergencies = Emergency::whereHas('order', function ($query) {
+                $query->whereIn('status', ['completed', 'canceled', 'cancelled']);
+            })
+            ->with([
+                'user:id,name,phone_number',
+                'vehicle:id,brand,model,plate_number',
+                'order',
+            ])
+            ->where('mechanic_id', $mechanicId)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn($e) => $this->formatEmergency($e));
+
+        return response()->json([
+            'success' => true,
+            'data'    => $emergencies,
+        ]);
     }
 
     /**
-     * Show detail of a specific emergency assigned to this mechanic.
+     * Function 2 — Terima panggilan: pending → dispatched
      */
-    public function show(Request $request, $id)
+    public function accept($emergencyId)
     {
-        $user = $request->user();
-        $mechanic = Mechanic::where('user_id', $user->id)->first();
-
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
         if (!$mechanic) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Mekanik tidak terdaftar.'
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
             ], 404);
         }
+        $mechanicId = $mechanic->id;
 
-        $emergency = Emergency::with(['user', 'vehicle', 'workshop'])
-            ->where('mechanic_id', $mechanic->id)
-            ->where('id', $id)
+        $emergency = Emergency::where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->where('status', 'pending')
             ->first();
 
         if (!$emergency) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Emergency request tidak ditemukan atau tidak ditugaskan kepada Anda.'
+                'success' => false,
+                'message' => 'Emergency tidak ditemukan atau status bukan pending',
             ], 404);
-        }
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $emergency
-        ], 200);
-    }
-
-    /**
-     * Accept/Dispatch the emergency request.
-     * Changes emergency status to 'dispatched' and mechanic status to 'busy'.
-     */
-    public function accept(Request $request, $id)
-    {
-        $user = $request->user();
-        $mechanic = Mechanic::where('user_id', $user->id)->first();
-
-        if (!$mechanic) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Mekanik tidak terdaftar.'
-            ], 404);
-        }
-
-        $emergency = Emergency::where('mechanic_id', $mechanic->id)
-            ->where('id', $id)
-            ->first();
-
-        if (!$emergency) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Emergency request tidak ditemukan atau tidak ditugaskan kepada Anda.'
-            ], 404);
-        }
-
-        if ($emergency->status !== 'pending') {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Hanya emergency request dengan status pending yang dapat diterima.'
-            ], 400);
         }
 
         DB::transaction(function () use ($emergency, $mechanic) {
-            // Update emergency status to dispatched (mechanic on the way)
             $emergency->update(['status' => 'dispatched']);
-            
-            // Update mechanic availability status to busy
-            $mechanic->update(['status' => 'busy']);
         });
 
         return response()->json([
-            'status' => 'success',
-            'message' => 'Emergency request berhasil diterima. Silakan menuju ke lokasi konsumen.',
-            'data' => [
-                'emergency_status' => 'dispatched',
-                'mechanic_status' => 'busy'
-            ]
-        ], 200);
+            'success' => true,
+            'message' => 'Panggilan diterima, status berubah ke dispatched',
+            'data'    => $this->formatEmergency($emergency->fresh()),
+        ]);
     }
 
     /**
-     * Complete emergency penanganan by generating an invoice.
-     * Handles both Towing and Non-Towing flows.
+     * Function 3 — Detail order emergency
      */
-    public function createInvoice(Request $request, $id)
+    public function show($emergencyId)
     {
-        $user = $request->user();
-        $mechanic = Mechanic::where('user_id', $user->id)->first();
-
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
         if (!$mechanic) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Mekanik tidak terdaftar.'
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
             ], 404);
         }
+        $mechanicId = $mechanic->id;
 
-        $emergency = Emergency::where('mechanic_id', $mechanic->id)
-            ->where('id', $id)
+        $emergency = Emergency::with([
+                'user:id,name,phone_number',
+                'vehicle:id,brand,model,plate_number,vehicle_type',
+                'order.orderServices.service',
+            ])
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
             ->first();
 
         if (!$emergency) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Emergency request tidak ditemukan atau tidak ditugaskan kepada Anda.'
+                'success' => false,
+                'message' => 'Emergency tidak ditemukan',
             ], 404);
         }
 
-        if ($emergency->status === 'resolved') {
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'emergency_id'  => $emergency->id,
+                'status'        => $emergency->status,
+                'client'        => [
+                    'name'  => $emergency->user->name ?? null,
+                    'phone' => $emergency->user->phone_number ?? null,
+                ],
+                'vehicle'       => ($emergency->vehicle || $emergency->vehicle_brand) ? [
+                    'brand'        => $emergency->vehicle ? $emergency->vehicle->brand : $emergency->vehicle_brand,
+                    'model'        => $emergency->vehicle ? $emergency->vehicle->model : $emergency->vehicle_model,
+                    'plate_number' => $emergency->vehicle ? $emergency->vehicle->plate_number : $emergency->plate_number,
+                    'vehicle_type' => $emergency->vehicle ? $emergency->vehicle->vehicle_type : $emergency->vehicle_type,
+                ] : null,
+                'damage_photo'  => $emergency->damage_photo
+                    ? url('storage/' . $emergency->damage_photo)
+                    : null,
+                'location'      => [
+                    'latitude'  => $emergency->latitude,
+                    'longitude' => $emergency->longitude,
+                ],
+                'order'         => $emergency->order ? [
+                    'order_id'       => $emergency->order->id,
+                    'status'         => $emergency->order->status,
+                    'payment_status' => $emergency->order->payment_status,
+                    'is_towing'      => $emergency->order->is_towing,
+                    'total_price'    => $emergency->order->total_price,
+                    'services'       => $emergency->order->orderServices->map(fn($os) => [
+                        'id'                 => $os->id,
+                        'service_id'         => $os->service_id,
+                        'service_name'       => $os->service->service_name ?? $os->additional_service,
+                        'price'              => $os->price,
+                        'is_additional'      => is_null($os->service_id),
+                    ]),
+                ] : null,
+            ],
+        ]);
+    }
+
+    /**
+     * Function 4 — Sudah sampai: order pending → process
+     */
+    public function arrived($emergencyId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Emergency request ini sudah selesai ditangani.'
-            ], 400);
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->where('status', 'dispatched')
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency tidak ditemukan, status bukan dispatched, atau order tidak ada',
+            ], 404);
         }
 
-        $request->validate([
-            'is_towing' => 'required|boolean',
-            'services' => 'array',
-            'services.*.service_id' => 'nullable|exists:services,id',
-            'services.*.additional_service' => 'nullable|string|max:255',
-            'services.*.price' => 'required|numeric|min:0',
-            'voucher_id' => 'nullable|exists:vouchers,id',
-            'payment_type' => 'nullable|string|max:50',
-        ]);
-
-        $order = DB::transaction(function () use ($request, $emergency, $mechanic) {
-            $isTowing = filter_var($request->is_towing, FILTER_VALIDATE_BOOLEAN);
-
-            // Determine order statuses
-            // Towing: Pembayaran di CS (status: payment, payment_status: pending)
-            // Non-Towing: Pembayaran di tempat lewat mekanik (status: completed, payment_status: settlement)
-            $status = $isTowing ? 'payment' : 'completed';
-            $paymentStatus = $isTowing ? 'pending' : 'settlement';
-            $paymentType = $isTowing ? null : ($request->payment_type ?? 'cash');
-
-            // Calculate total price
-            $totalPrice = 0;
-            $servicesData = $request->input('services', []);
-            foreach ($servicesData as $svc) {
-                $totalPrice += floatval($svc['price'] ?? 0);
-            }
-
-            // 1. Create the Order record
-            $order = Order::create([
-                'mechanic_id' => $mechanic->id,
-                'voucher_id' => $request->voucher_id ?? null,
-                'status' => $status,
-                'payment_status' => $paymentStatus,
-                'total_price' => $totalPrice,
-                'payment_type' => $paymentType,
-                'scheduled_at' => null,
-            ]);
-
-            // 2. Create the Order Detail (Polymorphic link)
-            OrderDetail::create([
-                'order_id' => $order->id,
-                'service_type' => 'emergency',
-                'reference_id' => $emergency->id,
-                'price' => $totalPrice,
-            ]);
-
-            // 3. Create NOrderServices for services rendered
-            foreach ($servicesData as $svc) {
-                NOrderService::create([
-                    'order_id' => $order->id,
-                    'service_id' => $svc['service_id'] ?? null,
-                    'additional_service' => $svc['additional_service'] ?? null,
-                    'price' => floatval($svc['price'] ?? 0),
-                ]);
-            }
-
-            // 4. Update emergency status to resolved
-            $emergency->update([
-                'status' => 'resolved'
-            ]);
-
-            // 5. Update mechanic status to available (free to take next orders)
-            $mechanic->update([
-                'status' => 'available'
-            ]);
-
-            return $order;
-        });
-
-        // Load relations for response
-        $order->load(['orderDetails', 'nOrderServices']);
+        $emergency->order->update(['status' => 'process']);
 
         return response()->json([
-            'status' => 'success',
-            'message' => $request->is_towing 
-                ? 'Invoice berhasil dibuat. Layanan towing diaktifkan, silakan hubungi Customer Service untuk pembayaran.' 
-                : 'Invoice berhasil dibuat dan dibayar secara langsung di tempat.',
-            'data' => [
-                'order' => $order,
-                'emergency_status' => 'resolved',
-                'mechanic_status' => 'available'
-            ]
-        ], 200);
+            'success' => true,
+            'message' => 'Mekanik sudah sampai, status order berubah ke process',
+            'data'    => [
+                'order_id'     => $emergency->order->id,
+                'order_status' => 'process',
+            ],
+        ]);
+    }
+
+    /**
+     * Function 5 — Ajukan towing: is_towing no → yes
+     */
+    public function requestTowing($emergencyId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        if ($emergency->order->is_towing === 'yes') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Towing sudah diajukan sebelumnya',
+            ], 422);
+        }
+
+        $emergency->order->update(['is_towing' => 'yes']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Towing berhasil diajukan',
+            'data'    => [
+                'order_id'  => $emergency->order->id,
+                'is_towing' => 'yes',
+            ],
+        ]);
+    }
+
+    /**
+     * Function 6 — Tambah detail servis (pilih existing atau tambah manual)
+     */
+    public function addService(Request $request, $emergencyId)
+    {
+        $request->validate([
+            'service_id'         => 'nullable|exists:services,id',
+            'additional_service' => 'nullable|string|max:255',
+            'price'              => 'required_without:service_id|nullable|numeric|min:0',
+        ]);
+
+        // Harus salah satu
+        if (!$request->service_id && !$request->additional_service) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pilih service yang ada atau isi nama additional service',
+            ], 422);
+        }
+
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        DB::transaction(function () use ($request, $emergency) {
+            $price = $request->price;
+
+            // Jika pakai service_id, ambil base_price jika price tidak diisi
+            if ($request->service_id && !$price) {
+                $service = Service::find($request->service_id);
+                $price   = $service->base_price;
+            }
+
+            NOrderService::create([
+                'order_id'           => $emergency->order->id,
+                'service_id'         => $request->service_id,
+                'additional_service' => $request->additional_service,
+                'price'              => $price,
+            ]);
+
+            // Update total_price di order
+            $total = NOrderService::where('order_id', $emergency->order->id)->sum('price');
+            $emergency->order->update(['total_price' => $total]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Servis berhasil ditambahkan',
+            'data'    => [
+                'order_id'    => $emergency->order->id,
+                'total_price' => $emergency->order->fresh()->total_price,
+                'services'    => NOrderService::with('service')
+                    ->where('order_id', $emergency->order->id)
+                    ->get()
+                    ->map(fn($os) => [
+                        'id'                 => $os->id,
+                        'service_id'         => $os->service_id,
+                        'service_name'       => $os->service->service_name ?? $os->additional_service,
+                        'price'              => $os->price,
+                        'is_additional'      => is_null($os->service_id),
+                    ]),
+            ],
+        ]);
+    }
+
+    /**
+     * Function 6.5 — Remove service from order
+     */
+    public function removeService(Request $request, $emergencyId, $serviceId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        DB::transaction(function () use ($emergency, $serviceId) {
+            NOrderService::where('id', $serviceId)->where('order_id', $emergency->order->id)->delete();
+
+            // Update total_price di order
+            $total = NOrderService::where('order_id', $emergency->order->id)->sum('price');
+            $emergency->order->update(['total_price' => $total]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Servis berhasil dihapus',
+            'data'    => [
+                'order_id'    => $emergency->order->id,
+                'total_price' => $emergency->order->fresh()->total_price,
+            ],
+        ]);
+    }
+
+    /**
+     * Function 7 — Get list services (untuk dropdown)
+     */
+    public function getServices()
+    {
+        $services = Service::select('id', 'service_name', 'base_price')
+            ->orderBy('service_name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $services,
+        ]);
+    }
+
+    /**
+     * Function 8 — Total harga berdasarkan n_order_services
+     */
+    public function getTotal($emergencyId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with([
+                'order.orderServices.service',
+            ])
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        $services = $emergency->order->orderServices->map(fn($os) => [
+            'id'            => $os->id,
+            'service_id'    => $os->service_id,
+            'service_name'  => $os->service->service_name ?? $os->additional_service,
+            'price'         => $os->price,
+            'is_additional' => is_null($os->service_id),
+        ]);
+
+        $total = $services->sum('price');
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'order_id'    => $emergency->order->id,
+                'services'    => $services,
+                'total_price' => $total,
+                'is_towing'   => $emergency->order->is_towing,
+            ],
+        ]);
+    }
+
+    /**
+     * Function 9 — Lanjut pembayaran: order process → payment, emergency dispatched → resolved
+     */
+    public function proceedToPayment($emergencyId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        if ($emergency->order->status !== 'process') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Status order harus process untuk lanjut ke payment',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($emergency, $mechanic) {
+            // Hitung ulang total sebelum payment
+            $total = NOrderService::where('order_id', $emergency->order->id)->sum('price');
+
+            $emergency->order->update([
+                'status'      => 'payment',
+                'total_price' => $total,
+            ]);
+
+            $emergency->update(['status' => 'resolved']);
+            $mechanic->update(['status' => 'available']);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lanjut ke pembayaran',
+            'data'    => [
+                'order_id'          => $emergency->order->id,
+                'order_status'      => 'payment',
+                'emergency_status'  => 'resolved',
+                'total_price'       => $emergency->order->fresh()->total_price,
+            ],
+        ]);
+    }
+
+    /**
+     * Function 10 — Selesaikan pembayaran: upload bukti, order payment → completed
+     */
+    public function completePayment(Request $request, $emergencyId)
+    {
+        $request->validate([
+            'payment_proof' => 'required|image|mimes:jpeg,png,jpg|max:5120',
+            'payment_type'  => 'required|string|in:cash,transfer',
+        ]);
+
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        if ($emergency->order->status !== 'payment') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Status order harus payment untuk diselesaikan',
+            ], 422);
+        }
+
+        $photoPath = $request->file('payment_proof')
+            ->store('payment_proofs', 'public');
+
+        $emergency->order->update([
+            'status'         => 'completed',
+            'payment_status' => 'settlement',
+            'payment_type'   => $request->payment_type,
+            'payment_url'    => url('storage/' . $photoPath),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pembayaran selesai, order completed',
+            'data'    => [
+                'order_id'       => $emergency->order->id,
+                'order_status'   => 'completed',
+                'payment_status' => 'settlement',
+                'payment_type'   => $request->payment_type,
+                'payment_proof'  => url('storage/' . $photoPath),
+                'total_price'    => $emergency->order->total_price,
+            ],
+        ]);
+    }
+
+    /**
+     * Function 11 — Batalkan emergency (order fiktif): order → cancelled, emergency → cancelled
+     */
+    public function cancel($emergencyId)
+    {
+        $mechanic = Mechanic::where('user_id', Auth::id())->first();
+        if (!$mechanic) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+        $mechanicId = $mechanic->id;
+
+        $emergency = Emergency::with('order')
+            ->where('id', $emergencyId)
+            ->where('mechanic_id', $mechanicId)
+            ->first();
+
+        if (!$emergency || !$emergency->order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency atau order tidak ditemukan',
+            ], 404);
+        }
+
+        // Hanya bisa cancel jika status order masih pending atau process
+        if (!in_array($emergency->order->status, ['pending', 'process'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order tidak dapat dibatalkan karena status sudah ' . $emergency->order->status,
+            ], 422);
+        }
+
+        DB::transaction(function () use ($emergency, $mechanic) {
+            // Hapus semua service terkait order ini
+            NOrderService::where('order_id', $emergency->order->id)->delete();
+
+            // Update status order
+            $emergency->order->update([
+                'status'      => 'cancelled',
+                'total_price' => 0,
+            ]);
+
+            // Update status emergency
+            $emergency->update(['status' => 'cancelled']);
+
+            // Mekanik kembali available
+            $mechanic->update(['status' => 'available']);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order berhasil dibatalkan',
+            'data'    => [
+                'order_id'         => $emergency->order->id,
+                'order_status'     => 'cancelled',
+                'emergency_status' => 'cancelled',
+            ],
+        ]);
+    }
+
+    // ── Helper ───────────────────────────────────────────────────────────────
+
+    private function formatEmergency(Emergency $e): array
+    {
+        return [
+            'emergency_id' => $e->id,
+            'status'       => $e->status,
+            'client'       => [
+                'name'  => $e->user->name  ?? null,
+                'phone' => $e->user->phone_number ?? null,
+            ],
+            'vehicle'      => ($e->vehicle || $e->vehicle_brand) ? [
+                'brand'        => $e->vehicle ? $e->vehicle->brand : $e->vehicle_brand,
+                'model'        => $e->vehicle ? $e->vehicle->model : $e->vehicle_model,
+                'plate_number' => $e->vehicle ? $e->vehicle->plate_number : $e->plate_number,
+            ] : null,
+            'location'     => [
+                'latitude'  => $e->latitude,
+                'longitude' => $e->longitude,
+            ],
+            'order_status'    => $e->order->status        ?? null,
+            'payment_status'  => $e->order->payment_status ?? null,
+            'total_price'     => $e->order->total_price    ?? null,
+            'created_at'      => $e->created_at,
+        ];
     }
 }

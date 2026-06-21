@@ -8,31 +8,26 @@ use App\Http\Controllers\Api\V1\Admin\VehicleController as AdminVehicleControlle
 use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\CS\CSProfileController;
-use App\Http\Controllers\Api\V1\CustomerService\ProfileController as CSProfileControllerNew;
+use App\Http\Controllers\Api\V1\CS\CSProfileController as CSProfileController;
+use App\Http\Controllers\Api\V1\CS\DashboardController as CSDashboardController;
+use App\Http\Controllers\Api\V1\CS\EmergencyController as CSEmergencyController;
+use App\Http\Controllers\Api\V1\CS\OrderController as CSOrderController;
+use App\Http\Controllers\Api\V1\Customer\WorkshopController as CustomerWorkshopController;
 use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use App\Http\Controllers\Api\V1\Customer\EmergencyController as CustomerEmergencyController;
 use App\Http\Controllers\Api\V1\Customer\HomeController;
 use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderController;
+use App\Http\Controllers\Api\V1\Customer\ServiceHistoryController;
 use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
 use App\Http\Controllers\Api\V1\Customer\VoucherController as CustomerVoucherController;
 use App\Http\Controllers\Api\V1\Mechanic\DashboardController as MechanicDashboardController;
 use App\Http\Controllers\Api\V1\Mechanic\EmergencyController;
 use App\Http\Controllers\Api\V1\Mechanic\MechanicProfileController;
-use App\Http\Controllers\Api\V1\Public\ServiceController as PublicServiceController;
-use App\Http\Controllers\Api\V1\Public\WorkshopController as PublicWorkshopController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-
-    // --- PUBLIC ROUTES (No Auth) ---
-    Route::get('services', [PublicServiceController::class, 'index']);
-    Route::get('workshops', [PublicWorkshopController::class, 'index']);
-    Route::get('workshops/{id}', [PublicWorkshopController::class, 'show']);
-    Route::get('workshops/nearby', [PublicWorkshopController::class, 'nearby']);
-
     // --- AUTHENTICATION ---
     Route::prefix('auth')->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
@@ -85,15 +80,33 @@ Route::prefix('v1')->group(function () {
         // Contoh Route Khusus CS
         Route::middleware('role:customer_service')->prefix('cs')->group(function () {
             
-            Route::get('dashboard', [DashboardController::class, 'index']);
+            // Dashboard ( Beranda )
+            Route::get('dashboard', [CSDashboardController::class, 'index']);
 
-            Route::get('orders', [OrderController::class, 'index']);
-            Route::get('orders/{order}', [OrderController::class, 'show']);
-            Route::delete('orders/{order}', [OrderController::class, 'destroy']);
+            // Users Management
+            Route::get('/profile', [CSProfileController::class, 'profile']);
+            Route::put('/profile/phone', [CSProfileController::class, 'updatePhoneNumber']);
 
-            Route::get('dashboard',[\App\Http\Controllers\Api\V1\CS\DashboardController::class, 'index']);
+            // ORDER
+            Route::post('orders/find-vehicle', [CSOrderController::class, 'findVehicle']);
+            Route::get('orders/services', [CSOrderController::class, 'getServices']);
+            Route::get('orders', [CSOrderController::class, 'index']);
+            Route::get('orders/{id}', [CSOrderController::class, 'show']);
+            Route::get('orders/{id}/total', [CSOrderController::class, 'getTotal']);
+            Route::post('orders/{id}/add-service', [CSOrderController::class, 'addService']);
+            Route::delete('orders/{id}/service/{serviceId}', [CSOrderController::class, 'removeService']);
+            Route::post('orders/{id}/complete-payment', [CSOrderController::class, 'completePayment']);
+            Route::post('orders', [CSOrderController::class, 'store']);
+            Route::delete('orders/{order}', [CSOrderController::class, 'destroy']);
+            
+            // Emergency
+            Route::get('/emergencies',              [CSEmergencyController::class, 'index']);
+            Route::get('/emergencies/{id}',         [CSEmergencyController::class, 'show']);
+            Route::put('/emergencies/{id}/assign',  [CSEmergencyController::class, 'assignMechanic']);
+            Route::put('/emergencies/{id}/status',  [CSEmergencyController::class, 'updateStatus']);
 
-            Route::get('emergencies',[\App\Http\Controllers\Api\V1\CS\EmergencyController::class, 'index']);
+            // Helper: list mekanik tersedia
+            Route::get('/mechanics',                [CSEmergencyController::class, 'availableMechanics']);
 
             // Profile
             Route::get('profile', [CSProfileControllerNew::class, 'index']);
@@ -107,11 +120,24 @@ Route::prefix('v1')->group(function () {
             Route::get('dashboard', [MechanicDashboardController::class, 'index']);
             Route::post('status', [MechanicDashboardController::class, 'updateStatus']);
             
+            // Orders
+            Route::post('orders/{id}/accept', [MechanicDashboardController::class, 'acceptOrder']);
+            Route::post('orders/{id}/complete', [MechanicDashboardController::class, 'completeOrder']);
+            
             // Emergencies
-            Route::get('emergencies', [EmergencyController::class, 'index']);
-            Route::get('emergencies/{id}', [EmergencyController::class, 'show']);
-            Route::post('emergencies/{id}/accept', [EmergencyController::class, 'accept']);
-            Route::post('emergencies/{id}/invoice', [EmergencyController::class, 'createInvoice']);
+            Route::get('emergencies',                           [EmergencyController::class, 'index']);
+            Route::get('emergencies/history',                   [EmergencyController::class, 'history']);
+            Route::get('emergencies/services',                  [EmergencyController::class, 'getServices']);
+            Route::get('emergencies/{id}',                      [EmergencyController::class, 'show']);
+            Route::get('emergencies/{id}/total',                [EmergencyController::class, 'getTotal']);
+            Route::post('emergencies/{id}/accept',              [EmergencyController::class, 'accept']);
+            Route::post('emergencies/{id}/arrived',             [EmergencyController::class, 'arrived']);
+            Route::post('emergencies/{id}/towing',              [EmergencyController::class, 'requestTowing']);
+            Route::post('emergencies/{id}/add-service',         [EmergencyController::class, 'addService']);
+            Route::delete('emergencies/{id}/service/{serviceId}',[EmergencyController::class, 'removeService']);
+            Route::post('emergencies/{id}/proceed-payment',     [EmergencyController::class, 'proceedToPayment']);
+            Route::post('emergencies/{id}/complete-payment',    [EmergencyController::class, 'completePayment']);
+            Route::post('emergencies/{id}/cancel',              [EmergencyController::class, 'cancel']);
 
             // Profile
             Route::get('profile', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'index']);
@@ -132,27 +158,35 @@ Route::prefix('v1')->group(function () {
             Route::put('/vehicles/{id}', [CustomerVehicleController::class, 'update']);
             Route::delete('/vehicles/{id}', [CustomerVehicleController::class, 'destroy']);
 
+            // Endpoint Booking Service
+            Route::get('/booking/vehicles', [BookingController::class, 'getVehicles']);
+            Route::get('/booking/services', [BookingController::class, 'getServices']);
+            Route::get('/booking/workshops', [BookingController::class, 'getWorkshops']);
+            Route::post('/booking/summary', [BookingController::class, 'getSummary']);
+            Route::post('/booking', [BookingController::class, 'store']);
+
             // Endpoint Riwayat Pesanan Customer
             Route::get('/orders', [CustomerOrderController::class, 'index']);
             Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
             Route::post('/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
 
-            // Endpoint Booking
-            Route::get('/bookings', [BookingController::class, 'index']);
-            Route::post('/bookings', [BookingController::class, 'store']);
-            Route::get('/bookings/{id}', [BookingController::class, 'show']);
-            Route::delete('/bookings/{id}', [BookingController::class, 'destroy']);
-
             // Endpoint Emergency
-            Route::get('/emergencies', [CustomerEmergencyController::class, 'index']);
-            Route::post('/emergencies', [CustomerEmergencyController::class, 'store']);
-            Route::get('/emergencies/{id}', [CustomerEmergencyController::class, 'show']);
-            Route::post('/emergencies/{id}/cancel', [CustomerEmergencyController::class, 'cancel']);
-
+            Route::get('/emergency/vehicles', [CustomerEmergencyController::class, 'getVehicles']);
+            Route::get('/emergency/nearest-workshop', [CustomerEmergencyController::class, 'getNearestWorkshop']);
+            Route::post('/emergency', [CustomerEmergencyController::class, 'store']);
+            
             // Endpoint Voucher (Read Only)
             Route::get('/vouchers', [CustomerVoucherController::class, 'index']);
             Route::post('/vouchers/validate', [CustomerVoucherController::class, 'validate']);
 
+            Route::get('/workshops', [CustomerWorkshopController::class, 'index']);
+            Route::get('/workshops/nearest', [CustomerWorkshopController::class, 'nearest']);
+
+            //Endpoint Riwayat Service Kendaraan Customer
+            Route::get('/riwayat/vehicles/{vehicleId}/service-history', [ServiceHistoryController::class, 'show']);
+            Route::get('/riwayat/vehicles', [ServiceHistoryController::class, 'vehicles']);
+            Route::get('/riwayat/vehicles/{vehicleId}/detail', [ServiceHistoryController::class, 'vehicleDetail']);
+            
             // Endpoint Profil Customer
             Route::get('/profile', [CustomerProfileController::class, 'show']);
             Route::put('/profile', [CustomerProfileController::class, 'update']);

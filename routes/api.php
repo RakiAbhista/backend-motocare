@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Admin\VoucherController;
 use App\Http\Controllers\Api\V1\Admin\WorkshopController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CS\CSProfileController;
+use App\Http\Controllers\Api\V1\CustomerService\ProfileController as CSProfileControllerNew;
 use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\CustomerProfileController;
 use App\Http\Controllers\Api\V1\Customer\EmergencyController as CustomerEmergencyController;
@@ -82,13 +83,9 @@ Route::prefix('v1')->group(function () {
         });
        
         // Contoh Route Khusus CS
-        Route::middleware('role:customer_service')->prefix('customer-service')->group(function () {
+        Route::middleware('role:customer_service')->prefix('cs')->group(function () {
             
             Route::get('dashboard', [DashboardController::class, 'index']);
-
-            // Users Management
-            //Route::get('users', CSProfileController::class);
-            Route::get('profile', [CSProfileController::class, 'profile']);
 
             Route::get('orders', [OrderController::class, 'index']);
             Route::get('orders/{order}', [OrderController::class, 'show']);
@@ -97,6 +94,10 @@ Route::prefix('v1')->group(function () {
             Route::get('dashboard',[\App\Http\Controllers\Api\V1\CS\DashboardController::class, 'index']);
 
             Route::get('emergencies',[\App\Http\Controllers\Api\V1\CS\EmergencyController::class, 'index']);
+
+            // Profile
+            Route::get('profile', [CSProfileControllerNew::class, 'index']);
+            Route::get('profile/work-history', [CSProfileControllerNew::class, 'workHistory']);
 
         });
 
@@ -113,8 +114,10 @@ Route::prefix('v1')->group(function () {
             Route::post('emergencies/{id}/invoice', [EmergencyController::class, 'createInvoice']);
 
             // Profile
-            Route::get('profile', [MechanicProfileController::class, 'show']);
-            Route::put('profile', [MechanicProfileController::class, 'update']);
+            Route::get('profile', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'index']);
+            Route::put('profile/status', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'updateStatus']);
+            Route::put('profile/phone', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'updatePhone']);
+            Route::get('profile/work-history', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'workHistory']);
         });
 
         // Contoh Route Khusus Customer

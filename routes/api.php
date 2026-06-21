@@ -78,7 +78,7 @@ Route::prefix('v1')->group(function () {
         });
        
         // Contoh Route Khusus CS
-        Route::middleware('role:customer_service')->prefix('customer-service')->group(function () {
+        Route::middleware('role:customer_service')->prefix('cs')->group(function () {
             
             // Dashboard ( Beranda )
             Route::get('dashboard', [CSDashboardController::class, 'index']);
@@ -108,6 +108,10 @@ Route::prefix('v1')->group(function () {
             // Helper: list mekanik tersedia
             Route::get('/mechanics',                [CSEmergencyController::class, 'availableMechanics']);
 
+            // Profile
+            Route::get('profile', [CSProfileControllerNew::class, 'index']);
+            Route::get('profile/work-history', [CSProfileControllerNew::class, 'workHistory']);
+
         });
 
         // Contoh Route Khusus Mechanic
@@ -136,8 +140,10 @@ Route::prefix('v1')->group(function () {
             Route::post('emergencies/{id}/cancel',              [EmergencyController::class, 'cancel']);
 
             // Profile
-            Route::get('profile', [MechanicProfileController::class, 'show']);
-            Route::put('profile', [MechanicProfileController::class, 'update']);
+            Route::get('profile', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'index']);
+            Route::put('profile/status', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'updateStatus']);
+            Route::put('profile/phone', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'updatePhone']);
+            Route::get('profile/work-history', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'workHistory']);
         });
 
         // Contoh Route Khusus Customer

@@ -13,6 +13,8 @@ use App\Models\Workshop;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class BookingController extends Controller
 {
@@ -87,10 +89,44 @@ class BookingController extends Controller
                     ->where('user_id', $userId)
                     ->firstOrFail();
 
-                // Handle photo upload
+                // Handle photo upload to Supabase storage (damage_photo/booking/{filename})
                 $photoPath = null;
+                $photoUrl = null;
                 if ($request->hasFile('damage_photo')) {
-                    $photoPath = $request->file('damage_photo')->store('damage_photos', 'public');
+                    $file = $request->file('damage_photo');
+
+                    $origName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                    $ext = $file->getClientOriginalExtension();
+                    $safeName = Str::slug($origName) ?: 'photo';
+                    $filename = time() . '_' . $safeName . '.' . $ext;
+                    $storagePath = 'damage_photo/booking/' . $filename;
+
+                    $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
+                    $bucket = env('SUPABASE_STORAGE_BUCKET');
+                    $serviceKey = env('SUPABASE_SERVICE_KEY');
+
+                    if (! $supabaseUrl || ! $bucket || ! $serviceKey) {
+                        throw new \Exception('Supabase storage not configured.');
+                    }
+
+                    $uploadUrl = $supabaseUrl . '/storage/v1/object/' . $bucket . '/' . $storagePath;
+
+                    $fileContents = file_get_contents($file->getRealPath());
+                    $mime = $file->getMimeType() ?? 'application/octet-stream';
+
+                    $response = Http::withHeaders([
+                        'Authorization' => 'Bearer ' . $serviceKey,
+                        'apikey' => $serviceKey,
+                        'Content-Type' => $mime,
+                    ])->withBody($fileContents, $mime)
+                      ->put($uploadUrl);
+
+                    if (! $response->successful()) {
+                        throw new \Exception('Gagal mengupload file ke Supabase: ' . $response->body());
+                    }
+
+                    $photoPath = $storagePath;
+                    $photoUrl = $supabaseUrl . '/storage/v1/object/public/' . $bucket . '/' . $photoPath;
                 }
 
                 // Create booking
@@ -161,7 +197,7 @@ class BookingController extends Controller
                             'base_price' => $os->service->base_price
                         ]),
                         'complaint' => $booking->complaint,
-                        'damage_photo' => $photoPath ? url('storage/' . $photoPath) : null,
+                        'damage_photo' => $photoUrl ?? null,
                         'total_price' => $order->total_price,
                         'is_towing' => $order->is_towing,
                         'booking_date' => $booking->booking_date

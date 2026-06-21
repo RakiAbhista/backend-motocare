@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class EmergencyController extends Controller
 {
@@ -145,6 +147,18 @@ class EmergencyController extends Controller
             ], 404);
         }
 
+        // Build damage photo URL (Supabase public if configured, otherwise local storage)
+        $damagePhotoUrl = null;
+        if ($emergency->damage_photo) {
+            $supabaseUrl = rtrim(env('SUPABASE_URL') ?? '', '/');
+            $bucket = env('SUPABASE_STORAGE_BUCKET');
+            if ($supabaseUrl && $bucket) {
+                $damagePhotoUrl = $supabaseUrl . '/storage/v1/object/public/' . $bucket . '/' . $emergency->damage_photo;
+            } else {
+                $damagePhotoUrl = url('storage/' . $emergency->damage_photo);
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data'    => [
@@ -160,9 +174,7 @@ class EmergencyController extends Controller
                     'plate_number' => $emergency->vehicle ? $emergency->vehicle->plate_number : $emergency->plate_number,
                     'vehicle_type' => $emergency->vehicle ? $emergency->vehicle->vehicle_type : $emergency->vehicle_type,
                 ] : null,
-                'damage_photo'  => $emergency->damage_photo
-                    ? url('storage/' . $emergency->damage_photo)
-                    : null,
+                'damage_photo'  => $damagePhotoUrl,
                 'location'      => [
                     'latitude'  => $emergency->latitude,
                     'longitude' => $emergency->longitude,
@@ -554,14 +566,59 @@ class EmergencyController extends Controller
             ], 422);
         }
 
-        $photoPath = $request->file('payment_proof')
-            ->store('payment_proofs', 'public');
+        // Upload payment proof to Supabase under payment_proofs/{DD/MM/YYYY}/filename
+        $photoPath = null;
+        $photoUrl = null;
+
+        if ($request->hasFile('payment_proof')) {
+            $file = $request->file('payment_proof');
+
+            $origName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $ext = $file->getClientOriginalExtension();
+            $safeName = Str::slug($origName) ?: 'proof';
+            $filename = time() . '_' . $safeName . '.' . $ext;
+
+            $dateFolder = date('d/m/Y');
+            $storagePath = 'payment_proofs/' . $dateFolder . '/' . $filename;
+
+            $supabaseUrl = rtrim(env('SUPABASE_URL') ?? '', '/');
+            $bucket = env('SUPABASE_STORAGE_BUCKET');
+            $serviceKey = env('SUPABASE_SERVICE_KEY');
+
+            if (! $supabaseUrl || ! $bucket || ! $serviceKey) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Supabase storage not configured',
+                ], 500);
+            }
+
+            $uploadUrl = $supabaseUrl . '/storage/v1/object/' . $bucket . '/' . $storagePath;
+            $fileContents = file_get_contents($file->getRealPath());
+            $mime = $file->getMimeType() ?? 'application/octet-stream';
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $serviceKey,
+                'apikey' => $serviceKey,
+                'Content-Type' => $mime,
+            ])->withBody($fileContents, $mime)
+              ->put($uploadUrl);
+
+            if (! $response->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengupload payment proof: ' . $response->body(),
+                ], 500);
+            }
+
+            $photoPath = $storagePath;
+            $photoUrl = $supabaseUrl . '/storage/v1/object/public/' . $bucket . '/' . $photoPath;
+        }
 
         $emergency->order->update([
             'status'         => 'completed',
             'payment_status' => 'settlement',
             'payment_type'   => $request->payment_type,
-            'payment_url'    => url('storage/' . $photoPath),
+            'payment_url'    => $photoUrl ? $photoUrl : null,
         ]);
 
         return response()->json([
@@ -572,7 +629,7 @@ class EmergencyController extends Controller
                 'order_status'   => 'completed',
                 'payment_status' => 'settlement',
                 'payment_type'   => $request->payment_type,
-                'payment_proof'  => url('storage/' . $photoPath),
+                'payment_proof'  => $photoUrl ?? null,
                 'total_price'    => $emergency->order->total_price,
             ],
         ]);

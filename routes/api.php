@@ -78,7 +78,8 @@ Route::prefix('v1')->group(function () {
         });
        
         // Contoh Route Khusus CS
-        Route::middleware('role:customer_service')->prefix('cs')->group(function () {
+        Route::middleware('role:customer_service')->prefix('customer-service')->group(function () {
+        
             
             // Dashboard ( Beranda )
             Route::get('dashboard', [CSDashboardController::class, 'index']);
@@ -108,9 +109,12 @@ Route::prefix('v1')->group(function () {
             // Helper: list mekanik tersedia
             Route::get('/mechanics',                [CSEmergencyController::class, 'availableMechanics']);
 
-            // Profile
-            Route::get('profile', [CSProfileControllerNew::class, 'index']);
-            Route::get('profile/work-history', [CSProfileControllerNew::class, 'workHistory']);
+            // Vehicle
+            Route::get('/vehicles', [CSVehicleController::class, 'index']);
+            Route::get('/vehicles/{id}', [CSVehicleController::class, 'show']);
+            Route::put('/vehicles/{id}', [CSVehicleController::class, 'update']);
+            // Vehicle BY Plat
+            Route::post('/vehicles/find-by-plate', [CSVehicleController::class, 'findByPlate']);
 
         });
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Mechanic;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -39,11 +40,16 @@ class AuthController extends Controller
         // Login untuk session web
         Auth::login($user);
 
+        $userData = $user->toArray();
+        if (strtolower($user->role) === 'mechanic') {
+            $userData['mechanic_id'] = Mechanic::where('user_id', $user->id)->value('id');
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'Registrasi berhasil.',
             'access_token' => $token,
-            'user' => $user
+            'user' => $userData
         ], 201);
     }
 
@@ -72,11 +78,16 @@ class AuthController extends Controller
         // Login untuk session web
         Auth::login($user);
 
+        $userData = $user->toArray();
+        if (strtolower($user->role) === 'mechanic') {
+            $userData['mechanic_id'] = Mechanic::where('user_id', $user->id)->value('id');
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'Login berhasil.',
             'access_token' => $token,
-            'user' => $user
+            'user' => $userData
         ], 200);
     }
 

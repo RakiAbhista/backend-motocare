@@ -15,11 +15,15 @@ class MechanicSeeder extends Seeder
         Mechanic::create([
             'user_id' => 6,
             'status' => 'available',
+            'latitude' => null,
+            'longitude' => null,
         ]);
 
         Mechanic::create([
             'user_id' => 7,
             'status' => 'available',
+            'latitude' => null,
+            'longitude' => null,
         ]);
     }
 }

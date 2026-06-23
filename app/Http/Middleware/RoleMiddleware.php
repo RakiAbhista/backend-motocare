@@ -12,17 +12,19 @@ class RoleMiddleware
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure  $next
-     * @param  mixed  ...$roles
+     * @param  string  $roles
      * @return mixed
      */
-    public function handle(Request $request, Closure $next, ...$roles)
+    public function handle(Request $request, Closure $next, string $roles)
     {
+        // Pisahkan role berdasarkan '|' lalu lowercase semuanya
+        $allowedRoles = array_map('strtolower', explode('|', $roles));
+
         // Cek apakah user sudah login dan apakah rolenya sesuai dengan yang diizinkan
-        // Gunakan strtolower() untuk case-insensitive comparison
-        if (!$request->user() || !in_array(strtolower($request->user()->role), $roles)) {
+        if (!$request->user() || !in_array(strtolower($request->user()->role), $allowedRoles)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Anda tidak memiliki akses (Akses khusus ' . implode(', ', $roles) . ')'
+                'message' => 'Anda tidak memiliki akses (Akses khusus ' . implode(', ', $allowedRoles) . ')'
             ], 403);
         }
 

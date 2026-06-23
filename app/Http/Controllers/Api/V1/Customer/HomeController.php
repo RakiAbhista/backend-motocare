@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\Emergency;
 use App\Models\Order;
-use App\Models\OrderDetail;
+// use App\Models\OrderDetail; // unused
 use App\Models\Booking;
 use Illuminate\Support\Facades\Auth;
 
@@ -56,19 +56,23 @@ class HomeController extends Controller
             ->get(['id', 'brand', 'model', 'plate_number', 'vehicle_type', 'manufacturing_year', 'registration_doc']);
 
         // 4. Status Panggilan Darurat Aktif (Tracker)
+        // Mengambil emergency yang terkait dengan user login dan order belum selesai (order.status != 'completed')
         $activeEmergency = null;
-        $emergency = Emergency::with('workshop')
+        $emergency = Emergency::with(['workshop', 'order'])
             ->where('user_id', $userId)
-            ->whereIn('status', ['pending', 'dispatched']) // Mengambil yang belum resolved
+            ->whereHas('order', function ($q) {
+                $q->whereNotIn('status', ['completed', 'canceled']);
+            })
+            ->whereIn('status', ['pending', 'dispatched', 'resolved'])
             ->latest()
             ->first();
 
         if ($emergency) {
             $activeEmergency = [
                 'id' => '#EMG-' . str_pad($emergency->id, 4, '0', STR_PAD_LEFT),
-                'emergency_type' => 'mekanik', // Sesuai tipe daruratnya
-                'responder_name' => $emergency->workshop->name ?? 'Mencari Bengkel...',
-                'status' => $emergency->status, // 'pending' = Peninjauan, 'dispatched' = Menuju Lokasi
+                'emergency_status' => $emergency->status,
+                'order_status' => $emergency->order->status ?? null,
+                'complaint' => $emergency->complaint ?? $emergency->description ?? null,
             ];
         }
 

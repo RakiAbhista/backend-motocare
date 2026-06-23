@@ -9,6 +9,8 @@ class Mechanic extends Model
     protected $fillable = [
         'user_id',
         'status',
+        'latitude',
+        'longitude',
     ];
 
     // Relationships

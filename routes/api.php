@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Customer\OrderController as CustomerOrderControl
 use App\Http\Controllers\Api\V1\Customer\ServiceHistoryController;
 use App\Http\Controllers\Api\V1\Customer\VehicleController as CustomerVehicleController;
 use App\Http\Controllers\Api\V1\Customer\VoucherController as CustomerVoucherController;
+use App\Http\Controllers\Api\V1\Customer\DetailEmergencyController;
 use App\Http\Controllers\Api\V1\Mechanic\DashboardController as MechanicDashboardController;
 use App\Http\Controllers\Api\V1\Mechanic\EmergencyController;
 use App\Http\Controllers\Api\V1\Mechanic\MechanicProfileController;
@@ -78,7 +79,7 @@ Route::prefix('v1')->group(function () {
         });
        
         // Contoh Route Khusus CS
-        Route::middleware('role:customer_service')->prefix('cs')->group(function () {
+        Route::middleware('role:customer_service')->prefix('customer-service')->group(function () {
             
             // Dashboard ( Beranda )
             Route::get('dashboard', [CSDashboardController::class, 'index']);
@@ -195,4 +196,9 @@ Route::prefix('v1')->group(function () {
         });
     });
 
+          Route::middleware(['auth:sanctum', 'role:customer|mechanic'])->prefix('customer-mechanic')->group(function () {
+
+               Route::get('/detail/{id}', [DetailEmergencyController::class, 'detail']);
+              Route::put('/update-location/{mechanicId}', [DetailEmergencyController::class, 'updateMechanicLocation']);
+     });
 });

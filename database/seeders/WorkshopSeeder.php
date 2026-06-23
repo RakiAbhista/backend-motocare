@@ -13,33 +13,33 @@ class WorkshopSeeder extends Seeder
     public function run(): void
     {
         Workshop::create([
-            'name' => 'Workshop Pusat Jakarta',
-            'latitude' => -6.2088,
-            'longitude' => 106.8456,
+            'name' => 'Workshop Semarang A',
+            'latitude' => -7.01296700,
+            'longitude' => 110.46409700,
         ]);
 
         Workshop::create([
-            'name' => 'Workshop Bandung',
-            'latitude' => -6.9147,
-            'longitude' => 107.6098,
+            'name' => 'Workshop Semarang B',
+            'latitude' => -6.98127600,
+            'longitude' => 110.39045400,
         ]);
 
         Workshop::create([
-            'name' => 'Workshop Surabaya',
-            'latitude' => -7.2506,
-            'longitude' => 112.7508,
+            'name' => 'Workshop Semarang C',
+            'latitude' => -6.96474800,
+            'longitude' => 110.45826100,
         ]);
 
         Workshop::create([
-            'name' => 'Workshop Medan',
-            'latitude' => 3.1957,
-            'longitude' => 98.6722,
+            'name' => 'Workshop Semarang D',
+            'latitude' => -7.01577800,
+            'longitude' => 110.47422500,
         ]);
 
         Workshop::create([
-            'name' => 'Workshop Makassar',
-            'latitude' => -5.1477,
-            'longitude' => 119.4327,
+            'name' => 'Workshop Semarang E',
+            'latitude' => -7.06954400,
+            'longitude' => 110.43256800,
         ]);
     }
 }

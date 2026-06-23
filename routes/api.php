@@ -144,6 +144,7 @@ Route::prefix('v1')->group(function () {
             Route::post('emergencies/{id}/proceed-payment',     [EmergencyController::class, 'proceedToPayment']);
             Route::post('emergencies/{id}/complete-payment',    [EmergencyController::class, 'completePayment']);
             Route::post('emergencies/{id}/cancel',              [EmergencyController::class, 'cancel']);
+            Route::post('emergencies/clear-location',              [EmergencyController::class, 'clearLocation']);
 
             // Profile
             Route::get('profile', [\App\Http\Controllers\Api\V1\Mechanic\ProfileController::class, 'index']);

@@ -39,26 +39,51 @@ class DashboardController extends Controller
         $incomingQueue = Order::with([
                 'orderDetails.booking.vehicle',
                 'orderDetails.booking.user',
+                'orderDetails.emergency.user',
+                'orderDetails.emergency.vehicle',
             ])
             ->whereDate('created_at', $today)
             ->whereIn('status', ['pending', 'process'])
+            ->where(function ($q) {
+                // include booking orders
+                $q->whereHas('orderDetails', function ($q2) {
+                    $q2->where('service_type', 'booking');
+                })
+                // or include emergency orders only when is_towing = 'yes'
+                ->orWhere(function ($q3) {
+                    $q3->where('is_towing', 'yes')
+                       ->whereHas('orderDetails', function ($q4) {
+                           $q4->where('service_type', 'emergency');
+                       });
+                });
+            })
             ->orderBy('created_at', 'asc')
             ->get()
             ->map(function ($order) {
-                $detail = $order->orderDetails->first();
-                $booking = $detail?->booking;
-                $vehicle = $booking?->vehicle;
-                $customer = $booking?->user;
+                $detail = $order->orderDetails->whereIn('service_type', ['booking', 'emergency'])->first();
+
+                $customer = null;
+                $vehicle = null;
+
+                if ($detail?->service_type === 'booking') {
+                    $booking = $detail->booking;
+                    $customer = $booking?->user;
+                    $vehicle = $booking?->vehicle;
+                } elseif ($detail?->service_type === 'emergency') {
+                    $emergency = $detail->emergency;
+                    $customer = $emergency?->user;
+                    $vehicle = $emergency?->vehicle ?? null;
+                }
 
                 return [
                     'order_id'       => $order->id,
                     'status'         => $order->status,
                     'customer_name'  => $customer?->name,
                     'vehicle'        => $vehicle ? [
-                        'brand'            => $vehicle->brand,
-                        'model'            => $vehicle->model,
-                        'manufacturing_year' => $vehicle->manufacturing_year,
-                        'plate_number'     => $vehicle->plate_number,
+                        'brand'               => $vehicle->brand,
+                        'model'               => $vehicle->model,
+                        'manufacturing_year'  => $vehicle->manufacturing_year,
+                        'plate_number'        => $vehicle->plate_number,
                     ] : null,
                 ];
             });
@@ -149,6 +174,37 @@ class DashboardController extends Controller
             'status'  => 'success',
             'message' => 'Status berhasil diperbarui.',
             'data'    => ['status' => $mechanic->status],
+        ], 200);
+    }
+
+    /**
+     * Clear mechanic current location (set latitude and longitude to null)
+     */
+    public function clearLocation(Request $request)
+    {
+        $user = $request->user();
+
+        $mechanic = Mechanic::where('user_id', $user->id)->first();
+        if (! $mechanic) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Mekanik tidak terdaftar',
+            ], 404);
+        }
+
+        $mechanic->update([
+            'latitude' => null,
+            'longitude' => null,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Lokasi mekanik dihapus',
+            'data' => [
+                'mechanic_id' => $mechanic->id,
+                'latitude' => $mechanic->latitude,
+                'longitude' => $mechanic->longitude,
+            ],
         ], 200);
     }
 

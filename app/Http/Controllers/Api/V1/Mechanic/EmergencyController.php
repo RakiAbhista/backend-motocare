@@ -32,7 +32,9 @@ class EmergencyController extends Controller
         $mechanicId = $mechanic->id;
 
         $emergencies = Emergency::whereHas('order', function ($query) {
-                $query->whereIn('status', ['pending', 'process', 'payment']);
+                // only include active orders and exclude those already marked for towing
+                $query->whereIn('status', ['pending', 'process', 'payment'])
+                      ->where('is_towing', '!=', 'yes');
             })
             ->with([
                 'user:id,name,phone_number',
@@ -269,14 +271,22 @@ class EmergencyController extends Controller
             ], 422);
         }
 
-        $emergency->order->update(['is_towing' => 'yes']);
+        DB::transaction(function () use ($emergency) {
+            $emergency->order->update([
+                'is_towing' => 'yes',
+            ]);
+
+            // mark emergency as resolved when towing is requested
+            $emergency->update(['status' => 'resolved']);
+        });
 
         return response()->json([
             'success' => true,
             'message' => 'Towing berhasil diajukan',
             'data'    => [
-                'order_id'  => $emergency->order->id,
-                'is_towing' => 'yes',
+                'order_id'        => $emergency->order->id,
+                'is_towing'       => 'yes',
+                'emergency_status'=> 'resolved',
             ],
         ]);
     }
@@ -459,13 +469,18 @@ class EmergencyController extends Controller
 
         $total = $services->sum('price');
 
+        // Generate 2-digit unique suffix for payment validation
+        $uniqueSuffix = random_int(0, 99);
+        $totalWithSuffix = $total + $uniqueSuffix;
+
         return response()->json([
             'success' => true,
             'data'    => [
-                'order_id'    => $emergency->order->id,
-                'services'    => $services,
-                'total_price' => $total,
-                'is_towing'   => $emergency->order->is_towing,
+                'order_id'         => $emergency->order->id,
+                'services'         => $services,
+                'unique_suffix'    => str_pad((string)$uniqueSuffix, 2, '0', STR_PAD_LEFT),
+                'total_price'=> $totalWithSuffix,
+                'is_towing'        => $emergency->order->is_towing,
             ],
         ]);
     }
@@ -578,7 +593,7 @@ class EmergencyController extends Controller
             $safeName = Str::slug($origName) ?: 'proof';
             $filename = time() . '_' . $safeName . '.' . $ext;
 
-            $dateFolder = date('d/m/Y');
+            $dateFolder = date('d-m-Y');
             $storagePath = 'payment_proofs/' . $dateFolder . '/' . $filename;
 
             $supabaseUrl = rtrim(env('SUPABASE_URL') ?? '', '/');

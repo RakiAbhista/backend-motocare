@@ -26,11 +26,22 @@ class DashboardController extends Controller
         // Latest Orders (only pending/process/payment) and must have booking-type order detail
         $orders = Order::with([
             'orderDetails.booking.user',
-            'orderDetails.booking.vehicle'
+            'orderDetails.booking.vehicle',
+            'orderDetails.emergency.user',
         ])
         ->whereIn('status', ['pending', 'process', 'payment'])
-        ->whereHas('orderDetails', function ($q) {
-            $q->where('service_type', 'booking');
+        ->where(function ($q) {
+            // Include booking orders
+            $q->whereHas('orderDetails', function ($q2) {
+                $q2->where('service_type', 'booking');
+            })
+            // Or include emergency orders only when is_towing is true
+            ->orWhere(function ($q3) {
+                $q3->where('is_towing', 'yes')
+                   ->whereHas('orderDetails', function ($q4) {
+                       $q4->where('service_type', 'emergency');
+                   });
+            });
         })
         ->latest()
         ->get();
@@ -38,13 +49,20 @@ class DashboardController extends Controller
         // Format data order untuk Flutter
         $latestOrders = $orders->map(function ($order) {
 
-            $detail = $order->orderDetails->where('service_type', 'booking')->first();
+            $detail = $order->orderDetails->whereIn('service_type', ['booking', 'emergency'])->first();
 
-            $booking = $detail?->booking;
+            $customer = null;
+            $vehicle = null;
 
-            $customer = $booking?->user;
-
-            $vehicle = $booking?->vehicle;
+            if ($detail?->service_type === 'booking') {
+                $booking = $detail->booking;
+                $customer = $booking?->user;
+                $vehicle = $booking?->vehicle;
+            } elseif ($detail?->service_type === 'emergency') {
+                $emergency = $detail->emergency;
+                $customer = $emergency?->user;
+                $vehicle = $emergency?->vehicle ?? null;
+            }
 
             return [
                 'id' => $order->id,

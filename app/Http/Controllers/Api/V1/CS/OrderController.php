@@ -11,6 +11,8 @@ use App\Models\Vehicle;
 use App\Models\Service;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
@@ -220,14 +222,18 @@ class OrderController extends Controller
         ]);
 
         $total = $services->sum('price');
+        // Generate 2-digit unique suffix for payment validation
+        $uniqueSuffix = random_int(0, 99);
+        $totalWithSuffix = $total + $uniqueSuffix;
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'order_id'    => $order->id,
-                'services'    => $services,
-                'total_price' => $total,
-                'is_towing'   => $order->is_towing,
+                'order_id'         => $order->id,
+                'services'         => $services,
+                'unique_suffix'    => str_pad((string)$uniqueSuffix, 2, '0', STR_PAD_LEFT),
+                'total_price'      => $totalWithSuffix,
+                'is_towing'        => $order->is_towing,
             ],
         ]);
     }
@@ -359,14 +365,57 @@ class OrderController extends Controller
             ], 422);
         }
 
-        $photoPath = $request->file('payment_proof')
-            ->store('payment_proofs', 'public');
+        // Upload payment proof to Supabase under payment_proofs/{dd-mm-yyyy}/{orderid}_{filename}
+        $photoUrl = null;
+
+        if ($request->hasFile('payment_proof')) {
+            $file = $request->file('payment_proof');
+
+            $origName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $ext = $file->getClientOriginalExtension();
+            $safeName = Str::slug($origName) ?: 'proof';
+            $filename = time() . '_' . $safeName . '.' . $ext;
+
+            $dateFolder = date('d-m-Y');
+            $storagePath = 'payment_proofs/' . $dateFolder . '/' . $order->id . '_' . $filename;
+
+            $supabaseUrl = rtrim(env('SUPABASE_URL') ?? '', '/');
+            $bucket = env('SUPABASE_STORAGE_BUCKET');
+            $serviceKey = env('SUPABASE_SERVICE_KEY');
+
+            if (! $supabaseUrl || ! $bucket || ! $serviceKey) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Supabase storage not configured',
+                ], 500);
+            }
+
+            $uploadUrl = $supabaseUrl . '/storage/v1/object/' . $bucket . '/' . $storagePath;
+            $fileContents = file_get_contents($file->getRealPath());
+            $mime = $file->getMimeType() ?? 'application/octet-stream';
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $serviceKey,
+                'apikey' => $serviceKey,
+                'Content-Type' => $mime,
+            ])->withBody($fileContents, $mime)
+              ->put($uploadUrl);
+
+            if (! $response->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengupload payment proof: ' . $response->body(),
+                ], 500);
+            }
+
+            $photoUrl = $supabaseUrl . '/storage/v1/object/public/' . $bucket . '/' . $storagePath;
+        }
 
         $order->update([
             'status'         => 'completed',
             'payment_status' => 'settlement',
             'payment_type'   => $request->payment_type,
-            'payment_url'    => url('storage/' . $photoPath),
+            'payment_url'    => $photoUrl,
         ]);
 
         return response()->json([
@@ -377,7 +426,7 @@ class OrderController extends Controller
                 'order_status'   => 'completed',
                 'payment_status' => 'settlement',
                 'payment_type'   => $request->payment_type,
-                'payment_proof'  => url('storage/' . $photoPath),
+                'payment_proof'  => $photoUrl ?? null,
                 'total_price'    => $order->total_price,
             ],
         ]);

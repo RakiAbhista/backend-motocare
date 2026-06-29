@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('vehicle_brand')->nullable();
             $table->string('vehicle_type')->nullable();
             $table->string('plate_number')->nullable();
+            $table->string('manufacturing_year')->nullable();
             $table->foreignId('workshop_id')->constrained('workshops')->cascadeOnDelete();
             $table->decimal('latitude', 10, 8);
             $table->decimal('longitude', 11, 8);

@@ -9,6 +9,7 @@ use App\Models\OrderDetail;
 use App\Models\NOrderService;
 use App\Models\Vehicle;
 use App\Models\Service;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -105,10 +106,22 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'user_id'            => 'required|exists:users,id',
-            'vehicle_id'         => 'required|exists:vehicles,id',
+            // either provide existing user_id OR guest details (guest_name + guest_phone)
+            'user_id'            => 'nullable|exists:users,id',
+            'guest_name'         => 'required_without:user_id|string',
+            'guest_phone'        => 'required_without:user_id|string',
+
+            // either provide existing vehicle_id OR provide vehicle details
+            'vehicle_id'         => 'nullable|exists:vehicles,id',
+            'vehicle_brand'      => 'required_without:vehicle_id|string',
+            'vehicle_model'      => 'required_without:vehicle_id|string',
+            'vehicle_type'       => 'nullable|string',
+            'plate_number'       => 'nullable|string',
+            'manufacturing_year' => 'nullable|string',
+
             'workshop_id'        => 'required|exists:workshops,id',
-            'service_id'         => 'required|exists:services,id',
+            'service_ids'        => 'required|array|min:1',
+            'service_ids.*'      => 'exists:services,id',
             'complaint'          => 'required|string',
             'damage_photo'       => 'nullable|string',
             'additional_service' => 'nullable|string',
@@ -125,24 +138,52 @@ class OrderController extends Controller
                 ? \Carbon\Carbon::parse($lastOrder->scheduled_at)->addMinutes(45)
                 : now();
 
-            $service = Service::findOrFail($request->service_id);
+            // Determine services and total
+            $services = Service::whereIn('id', $request->service_ids)->get();
+            if ($services->isEmpty()) {
+                throw new \Exception('Selected services not found');
+            }
 
-            $booking = Booking::create([
-                'user_id'      => $request->user_id,
-                'vehicle_id'   => $request->vehicle_id,
+            // Determine user: existing or create guest
+            if ($request->filled('user_id')) {
+                $user = User::findOrFail($request->user_id);
+            } else {
+                $user = User::create([
+                    'name'         => $request->guest_name,
+                    'phone_number' => $request->guest_phone,
+                    'email'        => $request->guest_email ?? null,
+                    'password'     => bcrypt(Str::random(12)),
+                ]);
+            }
+
+            // Prepare booking data — use vehicle_id if provided, otherwise store vehicle fields
+            $bookingData = [
+                'user_id'      => $user->id,
+                'vehicle_id'   => $request->vehicle_id ?? null,
                 'workshop_id'  => $request->workshop_id,
-                'service_id'   => $request->service_id,
                 'complaint'    => $request->complaint,
                 'damage_photo' => $request->damage_photo,
                 'booking_date' => $scheduledAt,
-            ]);
+            ];
+
+            if (! $request->filled('vehicle_id')) {
+                $bookingData['vehicle_brand'] = $request->vehicle_brand;
+                $bookingData['vehicle_model'] = $request->vehicle_model;
+                $bookingData['vehicle_type'] = $request->vehicle_type ?? null;
+                $bookingData['plate_number'] = $request->plate_number ?? null;
+                $bookingData['manufacturing_year'] = $request->manufacturing_year ?? null;
+            }
+
+            $booking = Booking::create($bookingData);
+
+            $totalPrice = $services->sum('base_price');
 
             $order = Order::create([
                 'mechanic_id'    => null,
                 'voucher_id'     => null,
                 'status'         => 'process',
                 'payment_status' => 'pending',
-                'total_price'    => $service->base_price,
+                'total_price'    => $totalPrice,
                 'scheduled_at'   => $scheduledAt,
             ]);
 
@@ -150,15 +191,19 @@ class OrderController extends Controller
                 'order_id'     => $order->id,
                 'service_type' => 'booking',
                 'reference_id' => $booking->id,
-                'price'        => $service->base_price,
+                'price'        => $totalPrice,
             ]);
 
-            NOrderService::create([
-                'order_id'           => $order->id,
-                'service_id'         => $request->service_id,
-                'additional_service' => $request->additional_service,
-                'price'              => $service->base_price,
-            ]);
+            // create n_order_services for each selected service
+            foreach ($request->service_ids as $sid) {
+                $svc = $services->firstWhere('id', $sid);
+                NOrderService::create([
+                    'order_id'           => $order->id,
+                    'service_id'         => $sid,
+                    'additional_service' => null,
+                    'price'              => $svc ? $svc->base_price : 0,
+                ]);
+            }
 
             DB::commit();
 

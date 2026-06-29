@@ -14,8 +14,14 @@ return new class extends Migration
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('vehicle_id')->constrained('vehicles')->cascadeOnDelete();
+            $table->foreignId('vehicle_id')->constrained('vehicles')->nullOnDelete();
             $table->foreignId('workshop_id')->constrained('workshops')->cascadeOnDelete();
+            $table->string('guest_name')->nullable();
+            $table->string('vehicle_model')->nullable();
+            $table->string('vehicle_brand')->nullable();
+            $table->string('vehicle_type')->nullable();
+            $table->string('plate_number')->nullable();
+            $table->string('manufacturing_year')->nullable();
             $table->string('complaint', 255)->nullable();
             $table->string('damage_photo')->nullable();
             $table->timestamp('booking_date');

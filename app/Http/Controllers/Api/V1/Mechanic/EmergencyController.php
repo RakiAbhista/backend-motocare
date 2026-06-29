@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use App\Services\FcmService;
 
 class EmergencyController extends Controller
 {
@@ -111,6 +112,15 @@ class EmergencyController extends Controller
         DB::transaction(function () use ($emergency, $mechanic) {
             $emergency->update(['status' => 'dispatched']);
         });
+
+        // FCM Notification
+        $fcmService = new FcmService();
+        $fcmService->sendToUser(
+            $emergency->user_id, 
+            'Mekanik Sedang Menuju Lokasi', 
+            'Mekanik Anda telah menerima panggilan dan sedang menuju lokasi.',
+            ['type' => 'emergency', 'emergency_id' => (string) $emergency->id]
+        );
 
         return response()->json([
             'success' => true,
@@ -228,6 +238,15 @@ class EmergencyController extends Controller
 
         $emergency->order->update(['status' => 'process']);
 
+        // FCM Notification
+        $fcmService = new FcmService();
+        $fcmService->sendToUser(
+            $emergency->user_id, 
+            'Mekanik Telah Tiba', 
+            'Mekanik Anda telah sampai di lokasi. Silakan temui mekanik Anda.',
+            ['type' => 'emergency', 'emergency_id' => (string) $emergency->id]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Mekanik sudah sampai, status order berubah ke process',
@@ -279,6 +298,15 @@ class EmergencyController extends Controller
             // mark emergency as resolved when towing is requested
             $emergency->update(['status' => 'resolved']);
         });
+
+        // FCM Notification
+        $fcmService = new FcmService();
+        $fcmService->sendToUser(
+            $emergency->user_id, 
+            'Towing Diajukan', 
+            'Mekanik telah mengajukan permintaan towing untuk kendaraan Anda.',
+            ['type' => 'emergency', 'emergency_id' => (string) $emergency->id]
+        );
 
         return response()->json([
             'success' => true,
@@ -531,6 +559,15 @@ class EmergencyController extends Controller
             $mechanic->update(['status' => 'available']);
         });
 
+        // FCM Notification
+        $fcmService = new FcmService();
+        $fcmService->sendToUser(
+            $emergency->user_id, 
+            'Servis Selesai, Silakan Bayar', 
+            'Pengerjaan servis telah selesai. Silakan lakukan pembayaran.',
+            ['type' => 'emergency', 'emergency_id' => (string) $emergency->id]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Lanjut ke pembayaran',
@@ -635,6 +672,15 @@ class EmergencyController extends Controller
             'payment_type'   => $request->payment_type,
             'payment_url'    => $photoUrl ? $photoUrl : null,
         ]);
+
+        // FCM Notification
+        $fcmService = new FcmService();
+        $fcmService->sendToUser(
+            $emergency->user_id, 
+            'Pembayaran Berhasil', 
+            'Terima kasih! Pembayaran Anda telah berhasil diverifikasi.',
+            ['type' => 'emergency', 'emergency_id' => (string) $emergency->id]
+        );
 
         return response()->json([
             'success' => true,

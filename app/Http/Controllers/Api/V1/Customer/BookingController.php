@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use App\Services\FcmService;
 
 class BookingController extends Controller
 {
@@ -176,6 +177,15 @@ class BookingController extends Controller
                     'orderDetails',
                     'orderServices.service'
                 ]);
+
+                // Kirim notifikasi FCM ke seluruh CS
+                $fcmService = new FcmService();
+                $fcmService->sendToRole(
+                    'customer_service', 
+                    '📅 Ada Booking Baru', 
+                    'Pelanggan telah membuat jadwal booking servis baru.',
+                    ['type' => 'booking', 'booking_id' => (string) $booking->id]
+                );
 
                 return response()->json([
                     'success' => true,

@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api\V1\Mechanic;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Mechanic;
-use App\Models\OrderDetail;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use App\Services\FcmService;
 
 class DashboardController extends Controller
 {
@@ -214,8 +214,31 @@ class DashboardController extends Controller
             'order_id' => 'nullable|numeric',
         ]);
 
-        $order = Order::findOrFail($orderId);
+        
+        $fcmService = new FcmService();
+            
+        $order = Order::with([
+            'orderDetails.booking.user',
+            'orderDetails.emergency.user',
+        ])->findOrFail($orderId);
 
+        $orderDetail = $order->orderDetails->whereIn('service_type', ['booking', 'emergency'])->first();
+        $customerUserId = null;
+
+        if ($orderDetail?->service_type === 'emergency') {
+            $customerUserId = $orderDetail->emergency?->user_id;
+        } elseif ($orderDetail?->service_type === 'booking') {
+            $customerUserId = $orderDetail->booking?->user_id;
+        }
+
+        if ($customerUserId) {
+            $fcmService->sendToUser(
+                $customerUserId,
+                '✅ Mekanik Meluncur!',
+                'Mekanik telah menyetujui orderanmu dan sedang menuju ke lokasimu.'
+            );
+        }
+        
         // Validasi status harus pending
         if ($order->status !== 'pending') {
             return response()->json([

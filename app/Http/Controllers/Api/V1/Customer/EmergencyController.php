@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use App\Services\FcmService;
 
 class EmergencyController extends Controller
 {
@@ -87,6 +88,8 @@ class EmergencyController extends Controller
         $userLat = $validated['latitude'];
         $userLng = $validated['longitude'];
         $userId = Auth::id();
+
+
 
         // 1. Find the nearest workshop
         $nearestWorkshop = $this->findNearestWorkshop($userLat, $userLng);
@@ -216,6 +219,17 @@ class EmergencyController extends Controller
                     'reference_id' => $emergency->id,
                     'price'        => 0,
                 ]);
+
+                // Kirim notifikasi FCM ke CS setelah data berhasil disimpan
+                $fcmService = new FcmService();
+                $payload = ['type' => 'emergency', 'emergency_id' => (string) $emergency->id];
+                
+                $title = $isTowing ? '🚚 Request Towing!' : '🚨 Darurat Baru!';
+                $body  = $isTowing 
+                    ? 'Pelanggan meminta mobil derek/towing.' 
+                    : 'Ada pelanggan yang membutuhkan bantuan darurat segera!';
+
+                $fcmService->sendToRole('customer_service', $title, $body, $payload);
 
                 return response()->json([
                     'success' => true,

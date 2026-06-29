@@ -229,4 +229,23 @@ class AuthController extends Controller
             'message' => 'Logout berhasil.'
         ], 200);
     }
+
+    /**
+     * 7. UPDATE FCM TOKEN (Disimpan di Sini)
+     */
+    public function updateFcmToken(Request $request) 
+    {
+        $request->validate([
+            'fcm_token' => 'required|string'
+        ]);
+
+        $request->user()->update([
+            'fcm_token' => $request->fcm_token
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'FCM Token updated successfully'
+        ], 200);
+    }
 }

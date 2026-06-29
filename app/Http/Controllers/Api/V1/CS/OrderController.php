@@ -10,6 +10,7 @@ use App\Models\NOrderService;
 use App\Models\Vehicle;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\FcmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -181,7 +182,7 @@ class OrderController extends Controller
             $order = Order::create([
                 'mechanic_id'    => null,
                 'voucher_id'     => null,
-                'status'         => 'process',
+                'status'         => 'pending',
                 'payment_status' => 'pending',
                 'total_price'    => $totalPrice,
                 'scheduled_at'   => $scheduledAt,
@@ -463,6 +464,20 @@ class OrderController extends Controller
             'payment_url'    => $photoUrl,
         ]);
 
+        // Load order details to get user_id from source (booking/emergency)
+        $order->load('orderDetails.source');
+        $customerUserId = $order->orderDetails->first()?->source?->user_id;
+
+        if ($customerUserId) {
+            $fcmService = new FcmService();
+            $fcmService->sendToUser(
+                $customerUserId, 
+                '💰 Pembayaran Diterima!', 
+                'Terima kasih, pembayaran untuk order #' . $order->id . ' telah berhasil diverifikasi.',
+                ['type' => 'order', 'order_id' => (string) $order->id]
+            );
+        }
+        
         return response()->json([
             'success' => true,
             'message' => 'Pembayaran selesai, order completed',

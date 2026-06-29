@@ -7,6 +7,7 @@ use App\Models\Emergency;
 use App\Models\Mechanic;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Services\FcmService;
 
 class EmergencyController extends Controller
 {
@@ -126,6 +127,18 @@ class EmergencyController extends Controller
             'mechanic_id' => $mechanic->id,
         ]);
 
+        if ($emergency->mechanic_id) {
+    // Ambil user_id dari si mekanik
+    $mechanicUser = \App\Models\Mechanic::find($emergency->mechanic_id);
+        if ($mechanicUser && $mechanicUser->user_id) {
+            $fcmService = new FcmService();
+            $fcmService->sendToUser(
+                $mechanicUser->user_id, 
+                '🔧 Tugas Baru Berhasil Ditugaskan!', 
+                'Kamu ditunjuk CS untuk menangani order darurat ID #' . $emergency->id
+            );
+        }
+    }
         return response()->json([
             'status'  => 'success',
             'message' => 'Mekanik berhasil di-assign, status berubah ke dispatched',
